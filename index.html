@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="ru"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon-192.png"><meta name="theme-color" content="#1E8E5A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Калории">
 <title>Калории — дневник питания</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap">
@@ -66,16 +66,32 @@ label{display:block;font-size:12px;color:var(--mut)}
 .comp{position:fixed;left:0;right:0;bottom:calc(62px + env(safe-area-inset-bottom,0px));max-width:480px;margin:0 auto;padding:18px 14px 8px;background:linear-gradient(transparent,var(--bg) 30%);z-index:9}
 .send{position:static;margin-top:8px;align-items:center}.send input{border-radius:24px;padding:13px 16px;background:var(--card)}.send .sb{width:46px;height:46px;border-radius:50%;padding:0;display:flex;align-items:center;justify-content:center;flex:none;transition:transform .15s}.send .sb:active{transform:scale(.9)}
 @media(prefers-reduced-motion:reduce){*{animation:none!important}}
+.photo.alt{background:var(--line);color:var(--ink)}
+.acts{align-self:flex-start;display:flex;flex-wrap:wrap;gap:6px;animation:pop .32s}.acts span{background:color-mix(in srgb,var(--acc) 14%,var(--card));border-radius:12px;padding:6px 10px;font-size:12px;font-weight:700}.acts button{border:0;background:none;color:var(--acc);font-weight:800;cursor:pointer;padding:6px}
+:root{-webkit-text-size-adjust:100%}input,select,textarea{font-size:16px}
+.ad{display:flex;flex-direction:column;height:min(70dvh,560px)}.adh{display:flex;align-items:center;justify-content:space-between}.adh h2{margin:0}
+.seg{display:flex;gap:6px;margin:10px 0}.seg button{flex:1;border:0;border-radius:10px;padding:8px 2px;background:var(--line);font-weight:700;font-size:13px;cursor:pointer;color:var(--mut);transition:.2s}.seg button.on{background:var(--acc);color:var(--on)}
+.am{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;justify-content:flex-end;gap:8px;padding:4px 0}.hint{color:var(--mut);text-align:center;font-size:13px;margin:auto 12px}
+.am .bub{max-width:92%}.am .bub.me{max-width:80%}.am .ai{background:var(--bg)}
+.rc{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line);transition:opacity .3s}.rc:first-child{border:0}.rc>div{flex:1;min-width:0}.rc b{display:block}.ok{color:var(--acc);font-weight:700;display:block;margin-top:4px}
+#fq{margin-top:6px}.cmp{display:flex;align-items:center;gap:8px;position:relative;margin-top:8px}.cmp #ai{margin:0;border-radius:24px;padding:12px 16px}
+.pl{width:44px;height:44px;border-radius:50%;border:0;background:var(--line);display:flex;align-items:center;justify-content:center;flex:none;cursor:pointer;color:var(--ink)}
+.cmp .sb{width:44px;height:44px;border-radius:50%;border:0;background:var(--acc);color:var(--on);display:flex;align-items:center;justify-content:center;flex:none;cursor:pointer}
+.menu{position:absolute;bottom:54px;left:0;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,.18);display:flex;flex-direction:column;animation:pop .2s;z-index:2}.menu button{border:0;background:none;padding:10px 14px;text-align:left;font-weight:700;cursor:pointer;border-radius:10px}.menu[hidden]{display:none}
+.pvi{position:relative;width:64px;height:64px;margin-top:8px}.pvi img{width:100%;height:100%;object-fit:cover;border-radius:12px}.pvi .x{position:absolute;top:-6px;right:-6px;background:var(--ink);color:var(--bg);border-radius:50%;width:20px;height:20px;font-size:14px;line-height:1;padding:0}
+.sh,.am{overscroll-behavior:contain}
 </style></head><body>
 <div id="app"></div><div id="sheet"></div><nav class="tabs"><div id="tabs"></div></nav><div id="toast" role="status"></div>
 <script>
 const $=s=>document.querySelector(s),esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const API='https://kalorii-ai.crytime04.workers.dev/',KEY='kalorii-v1',MEALS=[['b','Завтрак'],['l','Обед'],['d','Ужин'],['s','Перекус']];
+const API='https://kalorii-ai.crytime04.workers.dev',VAPID='BLUkRGWHKuz1TYcfLPUf_TXspMMi-wUXHV5l7CLxRW7AtFNGD7UczkqgTdlNpqbmaZAkwOiuzCh49tyJxNZDdSo',KEY='kalorii-v1',MEALS=[['b','Завтрак'],['l','Обед'],['d','Ужин'],['s','Перекус']];
 const REM=[['b','Завтрак','08:30','Пора записать завтрак'],['l','Обед','13:00','Не забудьте внести обед'],['d','Ужин','19:00','Время ужина — добавьте его в дневник'],['s','Перекус','16:30','Время перекуса — внесите его в дневник'],['e','Вечерний итог','21:00','Посмотрите итоги дня и совет тренера']],GOALS=[['lose','Сжечь жир','Умеренный дефицит калорий'],['gain','Набрать мышцы','Профицит и больше белка'],['abs','Рельефный пресс','Дефицит и много белка'],['keep','Держать форму','Баланс калорий']];
 const DB=[['Куриная грудка, варёная',165,31,3.6,0],['Гречка варёная',110,4,1,21],['Рис варёный',130,2.7,.3,28],['Яйцо куриное',157,13,11,1],['Творог 5%',121,17,5,3],['Овсянка на воде',88,3,1.7,15],['Банан',89,1.1,.3,23],['Яблоко',52,.3,.2,14],['Хлеб ржаной',214,6,1,45],['Сыр твёрдый',350,25,27,0],['Картофель варёный',82,2,.4,17],['Лосось',208,20,13,0],['Макароны варёные',158,5.5,.9,31],['Кефир 2,5%',53,3,2.5,4],['Оливковое масло',884,0,100,0],['Огурец',15,.8,.1,3],['Говядина тушёная',250,26,16,0],['Йогурт натуральный',66,5,3,4]];
-let S={profile:null,log:{},water:{},weights:[],custom:null,rem:{on:{},t:{},fired:{}},chat:[]},V='today';
+let S={profile:null,log:{},water:{},weights:[],custom:null,foods:[],rem:{on:{},t:{},fired:{}},chat:[]},V='today';
 try{const r=localStorage.getItem(KEY);if(r)S=Object.assign(S,JSON.parse(r))}catch(e){}
-const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+let lastSync='',syncT,PUSH=false;
+S.foods=S.foods||[];S.weights=S.weights||[];
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}schedSync()};
 const today=()=>new Date().toLocaleDateString('sv'),R=Math.round;
 const items=d=>S.log[d]||[];
 const tot=d=>items(d).reduce((a,i)=>({k:a.k+i.k,p:a.p+i.p,f:a.f+i.f,c:a.c+i.c}),{k:0,p:0,f:0,c:0});
@@ -83,8 +99,13 @@ function norm(p,raw){const b=10*p.w+6.25*p.h-5*p.a+(p.sex=='m'?5:-161),g={lose:[
 const IC={today:'<path d="M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1h-4v-5H9v5H5a1 1 0 0 1-1-1z"/>',coach:'<path d="M5 6h14a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-7l-4 3v-3H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z"/>',stats:'<path d="M5 20V11M12 20V5M19 20v-7"/>',set:'<path d="M4 8h9M17 8h3M4 16h3M11 16h9"/><circle cx="15" cy="8" r="2"/><circle cx="9" cy="16" r="2"/>'};
 function go(k){V=k;render();const a=$('#app');a.classList.remove('vf');void a.offsetWidth;a.classList.add('vf');if(k!='coach')scrollTo(0,0)}
 function toast(t){const e=$('#toast');e.textContent=t;e.className='s';clearTimeout(toast.t);toast.t=setTimeout(()=>e.className='',4000)}
-function sheet(h,lock){$('#sheet').innerHTML=`<div class="ov" ${lock?'':'onclick="if(event.target==this)closeSheet()"'}><div class="sh">${h}</div></div>`}
-function closeSheet(){$('#sheet').innerHTML=''}
+let SY=0;
+function lockBody(){const b=document.body;if(b.style.position!='fixed'){SY=scrollY;b.style.cssText+=`;position:fixed;top:-${SY}px;left:0;right:0`}}
+function unlockBody(){const b=document.body;if(b.style.position=='fixed'){b.style.position=b.style.top=b.style.left=b.style.right='';scrollTo(0,SY)}}
+function sheet(h,lock){$('#sheet').innerHTML=`<div class="ov" ${lock?'':'onclick="if(event.target==this)closeSheet()"'}><div class="sh">${h}</div></div>`;lockBody();fixVV()}
+function fixVV(){const o=document.querySelector('#sheet .ov'),v=window.visualViewport;if(o&&v){o.style.height=v.height+'px';o.style.top=v.offsetTop+'px';o.style.bottom='auto'}}
+if(window.visualViewport){visualViewport.addEventListener('resize',fixVV);visualViewport.addEventListener('scroll',fixVV)}
+function closeSheet(){$('#sheet').innerHTML='';unlockBody()}
 function render(){
  $('#tabs').innerHTML=[['today','Сегодня'],['coach','ИИ-тренер'],['stats','Прогресс'],['set','Настройки']].map(([k,n])=>`<button class="${V==k?'on':''}" aria-label="${n}" onclick="go('${k}')"><svg viewBox="0 0 24 24" aria-hidden="true">${IC[k]}</svg></button>`).join('');
  if(!S.profile){$('#app').innerHTML='<h1>Калории</h1><p class="sub">Дневник питания с ИИ-тренером</p>';return openProfile()}
@@ -111,47 +132,71 @@ function saveProfile(){const g=i=>+$('#'+i).value,p={sex:$('#s_sex').value,a:g('
  if(!(p.a>=14&&p.a<=100&&p.h>=120&&p.h<=230&&p.w>=35&&p.w<=250))return toast('Проверьте возраст, рост и вес');
  S.profile=p;S.custom=null;if(!S.weights.length||S.weights.at(-1).d!=today())S.weights.push({d:today(),w:p.w});save();closeSheet();render()}
 /* ---- добавление еды ---- */
-let draft=[],meal='b';
-function openAdd(m){meal=m||(new Date().getHours()<11?'b':new Date().getHours()<16?'l':new Date().getHours()<21?'d':'s');draft=[];
- sheet(`<h2>Добавить еду</h2><label>Приём пищи<select id="ml" onchange="meal=this.value">${MEALS.map(([k,n])=>`<option value="${k}" ${k==meal?'selected':''}>${n}</option>`).join('')}</select></label><label class="photo" style="margin-top:12px">Сфотографировать еду<input id="ph" type="file" accept="image/*" capture="environment" hidden onchange="photo(this.files[0])"></label><p class="em" id="st" role="status"></p>
- <input id="q" placeholder="Найти продукт: гречка, творог…" oninput="search(this.value)"><div class="res" id="res"></div><button class="ghost" onclick="manual()">Ввести вручную</button><div id="man"></div><div id="dr"></div><button class="pri" id="ok" disabled onclick="commit()">Добавить в дневник</button>`)}
-function addDraft(n,g,k,p,f,c){g=g||100;draft.push({n,g:R(g),r:{k:k/g,p:p/g,f:f/g,c:c/g}});drawDraft()}
-function drawDraft(){$('#dr').innerHTML=draft.map((d,i)=>`<div class="dr"><div><b>${esc(d.n)}</b><small>${R(d.r.k*d.g)} ккал · Б ${R(d.r.p*d.g)} Ж ${R(d.r.f*d.g)} У ${R(d.r.c*d.g)}</small></div><input type="number" inputmode="numeric" value="${d.g}" aria-label="Граммы" onchange="draft[${i}].g=Math.max(1,+this.value||1);drawDraft()"><button class="x" aria-label="Убрать" onclick="draft.splice(${i},1);drawDraft()">×</button></div>`).join('');$('#ok').disabled=!draft.length}
-function search(q){q=q.trim().toLowerCase();$('#res').innerHTML=q?DB.filter(x=>x[0].toLowerCase().includes(q)).slice(0,6).map(x=>`<button onclick="addDraft('${x[0]}',100,${x[1]},${x[2]},${x[3]},${x[4]});$('#q').value='';$('#res').innerHTML=''"><span>${x[0]}</span><small>${x[1]} ккал / 100 г</small></button>`).join('')||'<p class="em">Не нашли — введите вручную или сфотографируйте</p>':''}
-function manual(){$('#man').innerHTML=`<div class="g2" style="margin:10px 0"><label style="grid-column:1/3">Название<input id="m_n"></label><label>Граммы<input id="m_g" type="number" value="100"></label><label>Ккал<input id="m_k" type="number"></label><label>Белки, г<input id="m_p" type="number"></label><label>Жиры, г<input id="m_f" type="number"></label><label>Углеводы, г<input id="m_c" type="number"></label></div><button class="sm" onclick="const v=i=>+$('#m_'+i).value||0;if(!$('#m_n').value||!v('k'))return toast('Укажите название и калории');addDraft($('#m_n').value,v('g'),v('k'),v('p'),v('f'),v('c'));$('#man').innerHTML=''">Добавить в список</button>`}
-async function getSample(){try{return window.claude?await claude.use('sample'):null}catch(e){return null}}
-const PP='Ты нутрициолог. На фото еда. Определи блюда и продукты, оцени вес порции в граммах и КБЖУ всей порции. Названия по-русски. Верни ТОЛЬКО JSON: {"items":[{"name":"...","grams":0,"kcal":0,"protein":0,"fat":0,"carbs":0}]}. Если еды на фото нет — {"items":[]}.';
+let meal='b';
+let AF=null,FQ=[];
+const PLUS='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',UP='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
+function freq(m){const c={};for(const d in S.log)for(const i of S.log[d])if(i.m==m){const e=c[i.n]||(c[i.n]={n:i.n,c:0,i});e.c++;e.i=i}return Object.values(c).sort((a,b)=>b.c-a.c).slice(0,8)}
+function drawFq(){FQ=freq(meal);$('#fq').innerHTML=FQ.length?FQ.map((e,i)=>`<button onclick="quick(${i})">${esc(e.n)}</button>`).join(''):'<small>Здесь появятся ваши частые блюда</small>'}
+function setMeal(m){meal=m;document.querySelectorAll('.seg button').forEach(b=>b.classList.toggle('on',b.dataset.m==m));drawFq()}
+function am(h,cls){const c=$('#am'),h0=c.querySelector('.hint');if(h0)h0.remove();const b=document.createElement('div');b.className='bub in '+cls;b.innerHTML=h;c.append(b);c.scrollTop=1e5;return b}
+function addEntry(o,d){const L=items(today());S.log[today()]=L;o.id=Date.now()+Math.random().toString(36).slice(2,6);L.push(o);if(d!==false)saveFood(o.n,o.g,o.k,o.p,o.f,o.c,d||'');save();render();return o.id}
+function resHtml(ids){const L=items(today()).filter(x=>ids.includes(x.id));return L.map(i=>`<div class="rc"><div><b>${esc(i.n)}</b><small>${i.g} г · Б ${i.p} · Ж ${i.f} · У ${i.c}</small></div><span>${i.k}</span><button class="x" aria-label="Удалить" onclick="rmE('${i.id}',this)">×</button></div>`).join('')+`<small class="ok">✓ Добавлено · ${MEALS.find(m=>m[0]==meal)[1]}</small>`}
+function rmE(id,b){S.log[today()]=items(today()).filter(x=>x.id!=id);save();render();b.closest('.rc').style.opacity=.35;b.remove()}
+function quick(i){const e=FQ[i].i;am(esc(e.n),'me');am(resHtml([addEntry({m:meal,n:e.n,g:e.g,k:e.k,p:e.p,f:e.f,c:e.c},false)]),'ai')}
+function attach(f){if(!f)return;AF=f;$('#mn').hidden=true;$('#pv').innerHTML=`<div class="pvi"><img alt="" src="${URL.createObjectURL(f)}"><button class="x" aria-label="Убрать фото" onclick="AF=null;$('#pv').innerHTML=''">×</button></div>`;$('#ai').placeholder='Уточните вес или состав (необязательно)'}
+async function sendFood(){const i=$('#ai'),text=i.value.trim(),f=AF;if((!text&&!f)||sendFood.b)return;sendFood.b=1;i.value='';AF=null;$('#pv').innerHTML='';i.placeholder='Например: творог 1%, 200 г';
+ am(esc(text||'Фото')+(f?' 📎':''),'me');const w=am('<span class="dots"><i></i><i></i><i></i></span>','ai');
+ try{let it;
+  if(hasAPI()){const r=await callAPI(f?{mode:'photo',image:await shrink(f),text}:{mode:'dish',text});it=JSON.parse(r.replace(/```json|```/g,'')).items||[]}
+  else if(!f){const rx=/([0-9]+) ?(г|гр|g)/i,g=+((text.match(rx)||[])[1])||100,q=text.replace(rx,'').trim().toLowerCase().split(/[ ,]+/)[0],x=q&&allFoods().find(y=>y[0].toLowerCase().includes(q));if(!x)throw{code:'nb'};it=[{name:x[0],grams:g,kcal:x[1]*g/100,protein:x[2]*g/100,fat:x[3]*g/100,carbs:x[4]*g/100}]}
+  else throw{code:'na'};
+  if(!it.length)throw{code:'empty'};
+  w.innerHTML=resHtml(it.map(x=>addEntry({m:meal,n:String(x.name||text||'Блюдо').slice(0,60),g:R(+x.grams)||100,k:R(+x.kcal||0),p:R(+x.protein||0),f:R(+x.fat||0),c:R(+x.carbs||0)},text)))}
+ catch(e){w.textContent=e.code=='rl'?'Слишком много запросов, подождите минуту.':e.code=='na'?'Для фото нужно подключить ИИ.':e.code=='nb'?'ИИ не подключён, и такого продукта нет в базе.':e.code=='empty'?'Не удалось распознать еду. Опишите подробнее.':'Не удалось посчитать. Попробуйте ещё раз.'}
+ sendFood.b=0;const A=$('#am');if(A)A.scrollTop=1e5}
+function openAdd(m){const h=new Date().getHours();meal=m||(h<11?'b':h<16?'l':h<21?'d':'s');AF=null;
+ sheet(`<div class="ad"><div class="adh"><h2>Добавить еду</h2><button class="x" aria-label="Закрыть" onclick="closeSheet()">×</button></div><div class="seg">${MEALS.map(([k,n])=>`<button data-m="${k}" class="${k==meal?'on':''}" onclick="setMeal('${k}')">${n}</button>`).join('')}</div><div class="am" id="am"><p class="hint">Напишите, что вы съели, или добавьте фото. Я посчитаю КБЖУ и внесу в сегодняшний день.</p></div><div class="chips" id="fq"></div><div id="pv"></div><div class="cmp"><div class="menu" id="mn" hidden><button onclick="$('#fc').click()">Сделать фото</button><button onclick="$('#fg').click()">Из галереи</button></div><button class="pl" aria-label="Добавить фото" onclick="$('#mn').hidden=!$('#mn').hidden">${PLUS}</button><input id="ai" placeholder="Например: творог 1%, 200 г" aria-label="Что вы съели" enterkeyhint="send" autocomplete="off" onkeydown="if(event.key=='Enter')sendFood()"><button class="sb" aria-label="Отправить" onclick="sendFood()">${UP}</button><input id="fc" type="file" accept="image/*" capture="environment" hidden onchange="attach(this.files[0])"><input id="fg" type="file" accept="image/*" hidden onchange="attach(this.files[0])"></div></div>`);drawFq()}
+function allFoods(){return S.foods.map(f=>[f.n,f.k,f.p,f.f,f.c,f.d]).concat(DB)}
 const hasAPI=()=>API.startsWith('http');
 async function callAPI(o){const x=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o)});if(!x.ok)throw{code:x.status==429?'rl':'err'};return (await x.json()).text}
 function shrink(f){return new Promise((ok,no)=>{const i=new Image();i.onload=()=>{const k=Math.min(1,1024/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=Math.round(i.width*k);c.height=Math.round(i.height*k);c.getContext('2d').drawImage(i,0,0,c.width,c.height);ok(c.toDataURL('image/jpeg',.8).split(',')[1])};i.onerror=no;i.src=URL.createObjectURL(f)})}
-async function photo(f){if(!f)return;const st=$('#st');st.textContent='Анализирую фото…';
- try{let r;const sm=await getSample();
-  if(sm&&(await sm.limits()).images)r=await sm.json(PP,{images:f,cache:false});
-  else if(hasAPI())r=JSON.parse((await callAPI({mode:'photo',image:await shrink(f)})).replace(/```json|```/g,''));
-  else throw{code:'na'};
-  (r.items||[]).forEach(i=>addDraft(i.name,+i.grams,+i.kcal||0,+i.protein||0,+i.fat||0,+i.carbs||0));
-  st.textContent=(r.items||[]).length?'Готово. Проверьте граммы — оценка по фото приблизительная.':'Еда не распознана. Попробуйте поиск.'}
- catch(x){st.textContent=x.code=='rl'?'Слишком много запросов. Подождите минуту и попробуйте снова.':x.code=='not_granted'?'Нужно разрешить доступ к ИИ, чтобы анализировать фото.':'Не удалось проанализировать фото. Используйте поиск или ручной ввод.'}}
-function commit(){const L=S.log[today()]=items(today());draft.forEach(d=>L.push({id:Date.now()+Math.random().toString(36).slice(2,6),m:meal,n:d.n,g:d.g,k:R(d.r.k*d.g),p:R(d.r.p*d.g),f:R(d.r.f*d.g),c:R(d.r.c*d.g)}));save();closeSheet();render()}
 /* ---- ИИ-тренер ---- */
 const SYS='Ты — дружелюбный ИИ-тренер по питанию в приложении для подсчёта калорий. Отвечай по-русски, кратко (до 120 слов), конкретно и с опорой на данные пользователя. Не ставь диагнозов и не советуй рацион ниже 1200 ккал; при проблемах со здоровьем рекомендуй врача.';
-function ctx(){const p=S.profile,n=norm(p),t=tot(today()),days=[...Array(7)].map((_,i)=>{const d=new Date();d.setDate(d.getDate()-i);return tot(d.toLocaleDateString('sv')).k}).filter(x=>x);
- return `Данные: ${p.sex=='m'?'мужчина':'женщина'}, ${p.a} лет, ${p.h} см, ${p.w} кг, цель: ${{lose:'сжечь жир',keep:'держать форму',gain:'набрать мышечную массу',abs:'рельефный пресс (снизить жир, сохранить мышцы)'}[p.goal]}. Норма: ${n.k} ккал, Б ${n.p} / Ж ${n.f} / У ${n.c} г. Сегодня съедено: ${t.k} ккал, Б ${R(t.p)} / Ж ${R(t.f)} / У ${R(t.c)}; блюда: ${items(today()).map(i=>i.n+' '+i.g+' г').join(', ')||'пока ничего'}. Средние ккал за дни с записями (7 дней): ${days.length?R(days.reduce((a,b)=>a+b)/days.length):'нет данных'}.`}
-const CH=['Что съесть на ужин?','Разбери мой день','Как не срываться на сладкое?','Сколько белка мне нужно?'];
+function ctx(){const p=S.profile,n=norm(p),t=tot(today()),W=S.rem.wc||{from:'09:00',to:'21:00',ev:2};
+ return `Сейчас ${new Date().toTimeString().slice(0,5)}. Профиль: ${p.sex=='m'?'мужчина':'женщина'}, ${p.a} лет, ${p.h} см, ${p.w} кг, цель: ${(GOALS.find(g=>g[0]==p.goal)||GOALS[0])[1]}. Норма: ${n.k} ккал, Б ${n.p} / Ж ${n.f} / У ${n.c} г${S.custom?' (изменена вручную)':''}. Сегодня съедено: ${t.k} ккал, Б ${R(t.p)} Ж ${R(t.f)} У ${R(t.c)}. Записи за сегодня (id: блюдо, приём, г, ккал): ${items(today()).map(i=>`${i.id}: ${i.n}, ${i.m}, ${i.g} г, ${i.k} ккал, Б${i.p} Ж${i.f} У${i.c}`).join('; ')||'нет'}. Напоминания: ${REM.map(r=>`${r[0]} ${S.rem.on[r[0]]?'вкл':'выкл'} ${S.rem.t[r[0]]||r[2]}`).join(', ')}; вода ${S.rem.on.w?'вкл':'выкл'} ${W.from}–${W.to} каждые ${W.ev} ч. Воды выпито сегодня: ${S.water[today()]||0} мл.`}
+const CH=['Что съесть на ужин?','Разбери мой день','Добавь на завтрак 200 г творога 1%','Напоминай пить воду каждые 2 часа','Поставь белки 150 г в день'];
 function bub(r,t,a){const b=document.createElement('div');b.className='bub '+(r=='user'?'me':'ai')+(a?' in':'');b.textContent=t;return b}
 function toBot(s){scrollTo({top:document.body.scrollHeight,behavior:s?'smooth':'auto'})}
 function vCoach(){return `<div class="cw"><h1>ИИ-тренер</h1><p class="sub">Знает вашу норму и рацион за сегодня</p><div class="msgs" id="chat">${S.chat.length?S.chat.map(m=>`<div class="bub ${m.role=='user'?'me':'ai'}">${esc(m.content)}</div>`).join(''):'<div class="bub ai">Привет! Подскажу, что съесть, чтобы уложиться в норму, и разберу ваш день.</div>'}</div></div><div class="comp"><div class="chips">${CH.map((t,i)=>`<button onclick="ask(CH[${i}])">${t}</button>`).join('')}</div><div class="send"><input id="ci" placeholder="Спросите тренера" aria-label="Вопрос тренеру" enterkeyhint="send" onkeydown="if(event.key=='Enter')ask()"><button class="sb" aria-label="Отправить" onclick="ask()"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div></div>`}
 function local(){const n=norm(S.profile),d=tot(today()),l=n.k-d.k,pl=n.p-d.p;return `Сегодня съедено ${d.k} из ${n.k} ккал. `+(l>0?`Осталось ${l} ккал`+(pl>10?` и ещё около ${R(pl)} г белка — подойдут творог, куриная грудка или яйца.`:'.'):`Норма превышена на ${-l} ккал — на ужин лучше лёгкий белковый вариант и овощи.`)+'\n\nЭто упрощённый совет без ИИ: полноценные ответы появятся после подключения вашего API.'}
+function saveFood(n,g,k,p,f,c,d){if(!g)return;const x={n:String(n).slice(0,60),d:String(d||'').slice(0,120),k:R(k/g*100),p:+(p/g*100).toFixed(1),f:+(f/g*100).toFixed(1),c:+(c/g*100).toFixed(1)},i=S.foods.findIndex(y=>y.n.toLowerCase()==x.n.toLowerCase());if(i>=0)S.foods[i]=x;else S.foods.unshift(x);S.foods=S.foods.slice(0,300)}
+let UNDO=null;
+function undo(){if(!UNDO)return;Object.assign(S,JSON.parse(UNDO));UNDO=null;save();document.querySelectorAll('.acts').forEach(e=>e.remove());toast('Изменения отменены')}
+function applyActions(L){const out=[];if(!Array.isArray(L)||!L.length)return out;UNDO=JSON.stringify(Object.fromEntries(Object.entries(S).filter(([k])=>k!='chat')));
+ const num=(v,a,b)=>{v=+v;return isFinite(v)?Math.min(b,Math.max(a,v)):0},tm=v=>/^([01]\d|2[0-3]):[0-5]\d$/.test(v||'')?v:null,id=()=>Date.now()+Math.random().toString(36).slice(2,6);
+ L.slice(0,6).forEach(a=>{try{const d=today(),T=items(d);S.log[d]=T;switch(a.type){
+ case 'add_food':{const m=['b','l','d','s'].includes(a.meal)?a.meal:'s',n=String(a.name||'Блюдо').slice(0,60),g=R(num(a.grams,1,5000))||100,k=R(num(a.kcal,0,5000)),p=R(num(a.protein,0,500)),f=R(num(a.fat,0,500)),c=R(num(a.carbs,0,800));T.push({id:id(),m,n,g,k,p,f,c});saveFood(n,g,k,p,f,c,'');out.push(`Добавлено: ${n} — ${k} ккал`);break}
+ case 'edit_food':{const i=T.find(x=>x.id==a.id);if(!i)break;const M={name:'n',grams:'g',kcal:'k',protein:'p',fat:'f',carbs:'c'};for(const q in M)if(a[q]!==undefined)i[M[q]]=q=='name'?String(a[q]).slice(0,60):R(num(a[q],0,5000));out.push(`Изменено: ${i.n}`);break}
+ case 'delete_food':{const i=T.find(x=>x.id==a.id);if(!i)break;S.log[d]=T.filter(x=>x.id!=a.id);out.push(`Удалено: ${i.n}`);break}
+ case 'set_macros':{const p=R(num(a.protein,0,800)),f=R(num(a.fat,0,800)),c=R(num(a.carbs,0,800));if(p+f+c<50)break;S.custom={p,f,c};out.push(`Цель БЖУ: Б ${p} / Ж ${f} / У ${c} — ${p*4+f*9+c*4} ккал`);break}
+ case 'reset_macros':S.custom=null;out.push('Норма БЖУ: рекомендованная');break;
+ case 'set_goal':{if(!GOALS.some(g=>g[0]==a.goal))break;S.profile.goal=a.goal;S.custom=null;out.push('Цель: '+GOALS.find(g=>g[0]==a.goal)[1]);break}
+ case 'set_reminder':{const r=REM.find(x=>x[0]==a.key);if(!r)break;if(typeof a.on=='boolean')S.rem.on[r[0]]=a.on;if(tm(a.time))S.rem.t[r[0]]=a.time;out.push(`Напоминание «${r[1]}»: ${S.rem.on[r[0]]?'вкл':'выкл'}, ${S.rem.t[r[0]]||r[2]}`);break}
+ case 'set_water_reminder':{const W=S.rem.wc=S.rem.wc||{from:'09:00',to:'21:00',ev:2};if(typeof a.on=='boolean')S.rem.on.w=a.on;if(tm(a.from))W.from=a.from;if(tm(a.to))W.to=a.to;if(a.every_hours)W.ev=Math.min(3,Math.max(1,R(num(a.every_hours,1,3))));out.push(`Вода: ${S.rem.on.w?'вкл':'выкл'}, ${W.from}–${W.to}, каждые ${W.ev} ч`);break}
+ case 'add_water':{const ml=R(num(a.ml,0,2000));if(!ml)break;S.water[d]=(S.water[d]||0)+ml;out.push(`Вода +${ml} мл`);break}
+ case 'add_weight':{const kg=num(a.kg,35,250);if(!kg)break;const W=S.weights;if(W.length&&W.at(-1).d==d)W.at(-1).w=kg;else W.push({d,w:kg});S.profile.w=kg;out.push(`Вес: ${kg} кг`);break}
+ }}catch(e){}});save();return out}
 async function ask(t){const i=$('#ci'),text=(t||(i&&i.value)||'').trim();if(!text||ask.b)return;if(i)i.value='';ask.b=1;const c=$('#chat');if(!S.chat.length)c.innerHTML='';
  c.append(bub('user',text,1));const box=bub('ai','',1);box.innerHTML='<span class="dots"><i></i><i></i><i></i></span>';c.append(box);const turns=S.chat.slice(-8).map(m=>({...m}));while(turns.length&&turns[0].role!='user')turns.shift();S.chat.push({role:'user',content:text});toBot(1);
- const sm=await getSample();let out='';
- try{if(sm){turns.push({role:'user',content:`${SYS}\n\n${ctx()}\n\nВопрос: ${text}`});out=(await sm(turns,{cache:false,modelTier:'quick',onText:({text:x})=>{box.textContent=x;toBot()}})).text}else if(hasAPI())out=await callAPI({mode:'chat',context:ctx(),messages:turns.concat({role:'user',content:text})});else throw{code:'na'}}
- catch(e){if(e.code=='na'){await new Promise(r=>setTimeout(r,900));out=local()}else out=e.code=='rl'?'Слишком много запросов. Подождите минуту.':e.code=='not_granted'?'Нужно разрешить доступ к ИИ.':'Не удалось получить ответ. Попробуйте ещё раз.'}
- box.textContent=out;S.chat.push({role:'assistant',content:out});save();ask.b=0;toBot(1)}
+ let out='',acts=[];
+ try{if(!hasAPI())throw{code:'na'};const raw=await callAPI({mode:'chat',context:ctx(),messages:turns.concat({role:'user',content:text})});let o;try{o=JSON.parse(raw.replace(/```json|```/g,''))}catch(e){o={reply:raw}}out=String(o.reply||'Готово.');acts=applyActions(o.actions)}
+ catch(e){if(e.code=='na'){await new Promise(r=>setTimeout(r,900));out=local()}else out=e.code=='rl'?'Слишком много запросов. Подождите минуту.':'Не удалось получить ответ. Попробуйте ещё раз.'}
+ box.textContent=out;if(acts.length){const a=document.createElement('div');a.className='acts';a.innerHTML=acts.map(x=>`<span>✓ ${esc(x)}</span>`).join('')+'<button onclick="undo()">Отменить</button>';box.after(a)}
+ S.chat.push({role:'assistant',content:out});save();ask.b=0;toBot(1)}
 /* ---- прогресс ---- */
 function vStats(){const n=norm(S.profile),D=[...Array(7)].map((_,i)=>{const d=new Date();d.setDate(d.getDate()-6+i);const k=d.toLocaleDateString('sv');return{l:d.toLocaleDateString('ru',{weekday:'short'}),k:tot(k).k}}),act=D.filter(x=>x.k),avg=act.length?R(act.reduce((a,x)=>a+x.k,0)/act.length):0,W=S.weights,ch=W.length>1?(W.at(-1).w-W[0].w).toFixed(1):'0.0';
  return `<h1>Прогресс</h1><p class="sub">Последние 7 дней</p><section class="card"><div class="mh"><h3>Калории по дням</h3><span>среднее ${avg} ккал</span></div><div class="wk">${D.map(x=>`<div><u class="${x.k>n.k?'o':''}" style="height:${Math.min(100,x.k/n.k*85)}%"></u><small>${x.l}</small></div>`).join('')}</div><p class="em">Норма: ${n.k} ккал. Оранжевым отмечены дни выше нормы.</p></section>
- <section class="card"><div class="mh"><h3>Вес</h3><span>${W.at(-1).w} кг · ${ch>0?'+':''}${ch} кг с начала</span></div><div class="g2"><input id="wi" type="number" step="0.1" inputmode="decimal" placeholder="Сегодняшний вес, кг" aria-label="Вес"><button class="pri" style="margin:4px 0 0" onclick="addW()">Записать</button></div>${W.slice(-5).reverse().map(x=>`<div class="it"><div>${new Date(x.d).toLocaleDateString('ru',{day:'numeric',month:'long'})}</div><b>${x.w} кг</b></div>`).join('')}</section>`}
+ <section class="card"><div class="mh"><h3>Вес</h3><span>${W.at(-1).w} кг · ${ch>0?'+':''}${ch} кг с начала</span></div><div class="g2"><input id="wi" type="number" step="0.1" inputmode="decimal" placeholder="Сегодняшний вес, кг" aria-label="Вес"><button class="pri" style="margin:4px 0 0" onclick="addW()">Записать</button></div>${W.slice(-5).reverse().map(x=>`<div class="it"><div>${new Date(x.d+'T12:00:00').toLocaleDateString('ru',{day:'numeric',month:'long'})}</div><b>${x.w} кг</b></div>`).join('')}</section>`}
 function addW(){const w=+$('#wi').value;if(!(w>=35&&w<=250))return toast('Введите вес от 35 до 250 кг');const W=S.weights;if(W.at(-1).d==today())W.at(-1).w=w;else W.push({d:today(),w});S.profile.w=w;save();render()}
 /* ---- настройки и уведомления ---- */
 function vSet(){const p=S.profile,n=norm(p),fk=['b','l','d','s'],W=S.rem.wc||{from:'09:00',to:'21:00',ev:2},
@@ -162,7 +207,7 @@ function vSet(){const p=S.profile,n=norm(p),fk=['b','l','d','s'],W=S.rem.wc||{fr
  <section class="card"><div class="mh"><h3>Уведомления о еде</h3><button class="sw ${any?'on':''}" role="switch" aria-checked="${any}" aria-label="Все уведомления о еде" onclick="setGroup(['b','l','d','s'])"></button></div>${REM.filter(r=>fk.includes(r[0])).map(row).join('')}</section>
  <section class="card"><div class="mh"><h3>Уведомления о воде</h3>${sw('w')}</div><div class="row"><span>С</span><input type="time" value="${W.from}" aria-label="Начало" onchange="wc('from',this.value)"></div><div class="row"><span>До</span><input type="time" value="${W.to}" aria-label="Конец" onchange="wc('to',this.value)"></div><div class="row"><span>Напоминать каждые</span><select style="width:auto;margin:0" aria-label="Интервал" onchange="wc('ev',+this.value)">${[1,2,3].map(h=>`<option value="${h}" ${W.ev==h?'selected':''}>${h} ч</option>`).join('')}</select></div></section>
  <section class="card"><div class="mh"><h3>Итоги дня</h3></div>${row(REM.find(r=>r[0]=='e'))}<p class="em">${permTxt()}</p></section>
- <section class="card"><h3>Данные</h3><p class="em">Дневник хранится в этом браузере на вашем устройстве.</p><button class="ghost" onclick="if(confirm('Удалить весь дневник и профиль?')){S={profile:null,log:{},water:{},weights:[],custom:null,rem:{on:{},t:{},fired:{}},chat:[]};save();render()}">Удалить все данные</button></section>`}
+ <section class="card"><h3>Данные</h3><p class="em">Дневник хранится в этом браузере на вашем устройстве.</p><button class="ghost" onclick="if(confirm('Удалить весь дневник и профиль?')){S={profile:null,log:{},water:{},weights:[],custom:null,foods:[],rem:{on:{},t:{},fired:{}},chat:[]};save();render()}">Удалить все данные</button></section>`}
 function wc(k,v){S.rem.wc=S.rem.wc||{from:'09:00',to:'21:00',ev:2};S.rem.wc[k]=v;save()}
 async function setGroup(ks){const on=!ks.some(k=>S.rem.on[k]);if(on&&'Notification' in window&&Notification.permission=='default'){try{await Notification.requestPermission()}catch(e){}}ks.forEach(k=>S.rem.on[k]=on);save();render()}
 function openMacros(){const n=norm(S.profile),f=(i,l,v)=>`<label>${l}<input id="g_${i}" type="number" inputmode="numeric" value="${v}" oninput="mk()"></label>`;
@@ -170,14 +215,18 @@ function openMacros(){const n=norm(S.profile),f=(i,l,v)=>`<label>${l}<input id="
 function mk(){const g=i=>+$('#g_'+i).value||0,k=g('p')*4+g('f')*9+g('c')*4,r=norm(S.profile,1),d=R((k/r.k-1)*100);$('#mk').innerHTML=`Итого <b>${k} ккал</b> в день`+(Math.abs(d)>=1?` (${d>0?'+':''}${d}% к рекомендованным ${r.k})`:'')}
 function saveMacros(){const g=i=>R(+$('#g_'+i).value);if([g('p'),g('f'),g('c')].some(x=>!(x>=0&&x<=800))||g('p')+g('f')+g('c')<50)return toast('Проверьте значения');S.custom={p:g('p'),f:g('f'),c:g('c')};save();closeSheet();render()}
 async function setRem(k){const on=!S.rem.on[k];if(on&&'Notification' in window&&Notification.permission=='default'){try{await Notification.requestPermission()}catch(e){}}
- S.rem.on[k]=on;save();render();if(on&&!('Notification' in window&&Notification.permission=='granted'))toast('Системные уведомления выключены — напоминания будут внутри приложения')}
+ S.rem.on[k]=on;save();render();if(on&&!('Notification' in window&&Notification.permission=='granted'))toast('Разрешите уведомления для приложения в настройках iPhone')}
 function permTxt(){const ios=/iPhone|iPad/.test(navigator.userAgent),sa=navigator.standalone||matchMedia('(display-mode:standalone)').matches;if(ios&&!sa)return 'На iPhone системные уведомления работают только после установки: «Поделиться» → «На экран Домой», затем откройте приложение с иконки.';return !('Notification' in window)?'Этот браузер не поддерживает системные уведомления — напоминание появится внутри приложения.':{granted:'Системные уведомления разрешены.',denied:'Системные уведомления запрещены в браузере — напоминание появится внутри приложения.',default:'Разрешение на уведомления ещё не выдано — браузер спросит при запуске теста.'}[Notification.permission]}
-async function testPush(b){if('Notification' in window&&Notification.permission=='default'){try{await Notification.requestPermission()}catch(e){}}
- const p=$('#pm');if(p)p.textContent=permTxt();let s=10;b.disabled=true;b.textContent='Придёт через 10 с…';
- const t=setInterval(()=>{s--;if(s>0){b.textContent='Придёт через '+s+' с…';return}clearInterval(t);notify('Тестовое напоминание','Так выглядят уведомления приложения «Калории»');b.disabled=false;b.textContent='Проверить уведомление через 10 секунд'},1000)}
-let SW=null;if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').then(r=>{SW=r}).catch(()=>{});
-async function notify(t,m){toast(t+': '+m);try{if('Notification' in window&&Notification.permission=='granted'){const r=SW||(navigator.serviceWorker&&await navigator.serviceWorker.getRegistration());if(r)r.showNotification(t,{body:m,icon:'icon-192.png',badge:'icon-192.png',tag:'kalorii'});else new Notification(t,{body:m})}}catch(e){}}
-setInterval(()=>{const hm=new Date().toTimeString().slice(0,5),d=today(),mn=x=>+x.slice(0,2)*60+ +x.slice(3,5);REM.forEach(([k,n,t,m])=>{if(S.rem.on[k]&&hm==(S.rem.t[k]||t)&&S.rem.fired[k]!=d){S.rem.fired[k]=d;save();notify(n,m)}});
- const w=S.rem.wc||{from:'09:00',to:'21:00',ev:2};if(S.rem.on.w&&hm>=w.from&&hm<=w.to&&(mn(hm)-mn(w.from))%(w.ev*60)==0&&S.rem.fired.w!=d+hm){S.rem.fired.w=d+hm;save();notify('Вода','Выпейте стакан воды')}},20000);
-render();
+function b64u(s){return Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0))}
+function schedSync(){clearTimeout(syncT);syncT=setTimeout(syncPush,800)}
+async function syncPush(){if(!hasAPI()||!('serviceWorker' in navigator)||!('PushManager' in window)||!('Notification' in window)||Notification.permission!='granted')return;
+ const cfg={on:S.rem.on,t:S.rem.t,wc:S.rem.wc||{from:'09:00',to:'21:00',ev:2}},any=Object.values(S.rem.on).some(Boolean),tz=-new Date().getTimezoneOffset(),str=JSON.stringify([cfg,any,tz]);if(str==lastSync)return;
+ try{const reg=await navigator.serviceWorker.ready;let sub=await reg.pushManager.getSubscription();
+  if(!any){if(sub)await callAPI({mode:'unsync',endpoint:sub.endpoint});PUSH=false;lastSync=str;return}
+  if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64u(VAPID)});
+  await callAPI({mode:'sync',sub:sub.toJSON(),tz,cfg});PUSH=true;lastSync=str}catch(e){}}
+async function notify(t,m,tag){try{if('Notification' in window&&Notification.permission=='granted'){const r=SW||(navigator.serviceWorker&&await navigator.serviceWorker.getRegistration());if(r)r.showNotification(t,{body:m,icon:'icon-192.png',badge:'icon-192.png',tag:tag||'kalorii'});else new Notification(t,{body:m})}}catch(e){}}
+setInterval(()=>{if(PUSH)return;const hm=new Date().toTimeString().slice(0,5),d=today(),mn=x=>+x.slice(0,2)*60+ +x.slice(3,5);REM.forEach(([k,n,t,m])=>{if(S.rem.on[k]&&hm==(S.rem.t[k]||t)&&S.rem.fired[k]!=d){S.rem.fired[k]=d;save();notify(n,m,k)}});
+ const w=S.rem.wc||{from:'09:00',to:'21:00',ev:2};if(S.rem.on.w&&hm>=w.from&&hm<=w.to&&(mn(hm)-mn(w.from))%(w.ev*60)==0&&S.rem.fired.w!=d+hm){S.rem.fired.w=d+hm;save();notify('Вода','Выпейте стакан воды','w')}},20000);
+render();schedSync();
 </script></body></html>
