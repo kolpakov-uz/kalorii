@@ -88,6 +88,67 @@ label{display:block;font-size:12px;color:var(--mut)}
 .rc{display:block;padding:8px 0}.rc .rt2{display:flex;align-items:center;gap:8px}.rt2>div{flex:1;min-width:0}.rt2 b{display:block}.rt2 small{color:var(--mut)}
 .pl4{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}.pl4 span{display:flex;align-items:center;gap:6px;background:var(--card);border-radius:12px;padding:6px 8px;animation:pop .4s cubic-bezier(.2,.9,.3,1.2) both}.pl4 i{font-style:normal;font-size:18px}.pl4 small{flex:1;font-size:11px}.pl4 b{font-weight:800;font-size:13px}
 .th{margin-left:8px;color:var(--mut);transition:opacity .15s}.am .bub.ai{animation:pop .35s cubic-bezier(.2,.9,.3,1.2)}
+html,body{overscroll-behavior:none}
+.sh.chat{display:flex;flex-direction:column;height:min(72dvh,600px);max-height:100%;overflow:hidden;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}
+.sh.chat .ad{flex:1;min-height:0;height:auto}.ov.kb .sh.chat{height:100%;padding-bottom:10px;border-radius:20px 20px 0 0}
+.am{justify-content:flex-start}.am>:first-child{margin-top:auto}.cmp,.send{align-items:flex-end}
+.cmp textarea,.send textarea{flex:1;min-width:0;resize:none;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:22px;padding:11px 16px;margin:0;line-height:1.35;max-height:120px;font:inherit;font-size:16px;overflow-y:auto}
+.cmp .sb,.send .sb{transition:opacity .2s,transform .2s}.cmp .sb:disabled,.send .sb:disabled{opacity:.35;transform:scale(.92)}
+.ph{display:block;width:180px;max-width:100%;border-radius:12px;margin-bottom:6px}
+body.kbd .tabs{display:none}body.kbd .comp{bottom:var(--kb,0px);padding-bottom:8px}
+.ce{display:block;flex:1;min-width:0;min-height:44px;max-height:120px;overflow-y:auto;box-sizing:border-box;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:22px;padding:11px 16px;line-height:1.35;font-size:16px;white-space:pre-wrap;word-break:break-word;outline:none;-webkit-user-select:text;user-select:text}
+.ce:empty::before{content:attr(data-ph);color:var(--mut);pointer-events:none}.ce:focus{border-color:var(--acc)}
+:root{--k1:#fff;--k2:#aeb3be;--kbg:#d1d4db}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--k1:#3b403e;--k2:#282c2a;--kbg:#161a18}}
+:root[data-theme="dark"]{--k1:#3b403e;--k2:#282c2a;--kbg:#161a18}
+.vk{position:fixed;left:0;right:0;bottom:0;z-index:30;max-width:560px;margin:0 auto;background:var(--kbg);padding:8px 3px calc(6px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:10px;animation:kbin .26s cubic-bezier(.2,.8,.2,1);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.vk.out{animation:kbout .2s forwards}@keyframes kbin{from{transform:translateY(100%)}}@keyframes kbout{to{transform:translateY(100%)}}
+.vk .kr{display:flex;gap:6px;padding:0 3px}.vk .kr.p1{padding:0 5%}
+.k{flex:1;min-width:0;height:46px;border:0;border-radius:8px;background:var(--k1);color:var(--ink);font:500 21px/1 Manrope,system-ui,sans-serif;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;padding:0;box-shadow:0 1px 0 rgba(0,0,0,.35);transition:filter .08s}
+.k.sp{background:var(--k2);flex:1.45;font-size:16px}.k.on{background:var(--k1)}.k.dn{filter:brightness(1.4)}.k.w14{flex:1.4}.k.w44{flex:4.4}.k.w22{flex:2.2}
+.lg{position:absolute;right:10px;bottom:6px;font-size:12px;color:var(--mut)}
+.eg{display:grid;grid-template-columns:repeat(8,1fr);gap:2px;height:158px;overflow-y:auto}.k.e{background:none;box-shadow:none;font-size:26px}
+.ce.act{border-color:var(--acc)}.ce.act::after{content:"";display:inline-block;width:2px;height:1.15em;margin-left:1px;vertical-align:text-bottom;background:var(--acc);animation:cb 1s steps(2,start) infinite}@keyframes cb{to{visibility:hidden}}
+body.kbd .cw{padding-bottom:calc(150px + var(--kb,0px))}
+.vk{position:relative;bottom:auto;max-width:none;z-index:auto}.sh .vk{margin:8px -18px 0}.comp .vk{margin:8px -14px 0}
+.ov.kb .sh.chat{padding-bottom:0}.sh.chat{transition:height .28s cubic-bezier(.2,.8,.2,1)}.comp{transition:bottom .25s}
+body.kbd .comp{bottom:0;padding-bottom:0}body.kbd .cw{padding-bottom:430px}
+.ce[contenteditable="false"]{-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;cursor:text}
+.vk{display:block;gap:0;box-sizing:border-box;height:calc(228px + env(safe-area-inset-bottom,0px));padding:8px 3px calc(6px + env(safe-area-inset-bottom,0px))}
+.ly{display:flex;flex-direction:column;gap:10px}.ly[hidden]{display:none}
+.vk.up .l{text-transform:uppercase}.vk.up [data-k=shift]{background:var(--k1)}.vk.up [data-k=shift] svg{fill:currentColor}
+.k{transition:none;box-shadow:none;-webkit-tap-highlight-color:transparent}.k.dn{filter:none;background:var(--k2)}.k.sp.dn{background:var(--k1)}.k.e.dn{background:var(--k2)}
+.ov{backdrop-filter:none!important}.sh{will-change:auto!important}
+.ce,.vk{-webkit-tap-highlight-color:transparent}.ce[contenteditable="false"]{-webkit-user-select:none;user-select:none}
+.vk,.vk.out{animation:none!important}
+.vk{position:static!important;left:auto!important;right:auto!important;bottom:auto!important;z-index:auto!important;height:auto!important;flex:none;width:100%;max-width:480px;margin:0 auto!important;padding:8px 3px calc(6px + env(safe-area-inset-bottom,0px))!important;animation:none!important;display:block}
+.comp .vk{margin:8px -14px 0!important;width:auto;max-width:none}
+.ov.kb{flex-direction:column;align-items:center;justify-content:flex-end}
+.ov.kb .sh{flex:1 1 auto;min-height:0;max-height:none;height:auto!important}
+body.kbd .comp{bottom:0!important;padding-bottom:0!important}
+body.kbd .cw{padding-bottom:440px}
+:root{--k3:#fff}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--k3:#5b605e}}
+:root[data-theme="dark"]{--k3:#5b605e}
+html,body,.vk,.vk *{touch-action:manipulation}
+.vk{position:relative!important;z-index:5!important}
+.ov .vk{background:var(--card)}.comp .vk{background:var(--bg)}
+.k.l.dn{background:var(--k3)}
+.kp{position:absolute;z-index:50;pointer-events:none;background:var(--k3);border-radius:10px 10px 6px 6px;display:flex;align-items:center;justify-content:center;font:500 30px/1 Manrope,system-ui,sans-serif;color:var(--ink);box-shadow:0 3px 10px rgba(0,0,0,.35)}
+.as{position:fixed;inset:0;z-index:60;display:flex;flex-direction:column;justify-content:flex-end;padding:0 10px calc(10px + env(safe-area-inset-bottom,0px))}
+.asb{position:absolute;inset:0;background:rgba(0,0,0,.4);animation:fd .2s}
+.ass{position:relative;max-width:480px;width:100%;margin:0 auto;animation:su .3s cubic-bezier(.2,.8,.2,1)}
+.asg{background:var(--card);border-radius:16px;overflow:hidden}
+.asg button,.asc{display:block;width:100%;border:0;background:none;color:var(--acc);font:500 18px/1 Manrope,system-ui,sans-serif;padding:17px;cursor:pointer;text-align:center}
+.asg button+button{border-top:1px solid var(--line)}.asc{background:var(--card);border-radius:16px;margin-top:8px;font-weight:700}
+.vk{contain:layout style;box-sizing:border-box;height:calc(228px + env(safe-area-inset-bottom,0px))!important}
+.ly{display:grid!important;grid-template-rows:46px 46px 46px 46px;gap:10px}.ly[data-l=emo]{grid-template-rows:158px 46px}.ly[hidden]{display:none!important}.kr{height:46px}
+.kp{position:fixed;z-index:70}
+.ov.kb{flex-direction:row!important;align-items:flex-end!important;justify-content:center!important}
+.ov.kb .sh{flex:none!important}
+.ov.kb .sh.chat{height:100%!important;max-height:100%!important;padding-bottom:0!important}
+.sh .vk{margin:0 -18px!important;width:auto;max-width:none;background:var(--card)}
+.cmp .sb,.send .sb{transition:opacity .2s}.cmp .sb:disabled,.send .sb:disabled{transform:none}
 </style></head><body>
 <div id="app"></div><div id="sheet"></div><nav class="tabs"><div id="tabs"></div></nav><div id="toast" role="status"></div>
 <script>
@@ -106,16 +167,16 @@ const items=d=>S.log[d]||[];
 const tot=d=>items(d).reduce((a,i)=>({k:a.k+i.k,p:a.p+i.p,f:a.f+i.f,c:a.c+i.c}),{k:0,p:0,f:0,c:0});
 function norm(p,raw){const b=10*p.w+6.25*p.h-5*p.a+(p.sex=='m'?5:-161),g={lose:[.85,1.8],gain:[1.1,1.8],abs:[.88,2.2],keep:[1,1.4]}[p.goal]||[1,1.4];let k=Math.max(1200,R(b*p.act*g[0]/10)*10);const pr=R(p.w*g[1]),f=R(k*.27/9),r={k,p:pr,f,c:Math.max(0,R((k-pr*4-f*9)/4))};if(S.custom&&!raw){const c=S.custom;return{k:c.p*4+c.f*9+c.c*4,p:c.p,f:c.f,c:c.c}}return r}
 const IC={today:'<path d="M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1h-4v-5H9v5H5a1 1 0 0 1-1-1z"/>',coach:'<path d="M5 6h14a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-7l-4 3v-3H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z"/>',stats:'<path d="M5 20V11M12 20V5M19 20v-7"/>',set:'<path d="M4 8h9M17 8h3M4 16h3M11 16h9"/><circle cx="15" cy="8" r="2"/><circle cx="9" cy="16" r="2"/>'};
-function go(k){V=k;render();const a=$('#app');a.classList.remove('vf');void a.offsetWidth;a.classList.add('vf');if(k!='coach')scrollTo(0,0)}
+function go(k){kbClose();V=k;render();const a=$('#app');a.classList.remove('vf');void a.offsetWidth;a.classList.add('vf');if(k!='coach')scrollTo(0,0)}
 function toast(t){const e=$('#toast');e.textContent=t;e.className='s';clearTimeout(toast.t);toast.t=setTimeout(()=>e.className='',4000)}
 let SY=0;
 function lockBody(){const b=document.body;if(b.style.position!='fixed'){SY=scrollY;b.style.cssText+=`;position:fixed;top:-${SY}px;left:0;right:0`}}
 function unlockBody(){const b=document.body;if(b.style.position=='fixed'){b.style.position=b.style.top=b.style.left=b.style.right='';scrollTo(0,SY)}}
 let CS=0;
 function sheet(h,lock){CS++;$('#sheet').innerHTML=`<div class="ov" ${lock?'':'onclick="if(event.target==this)closeSheet()"'}><div class="sh">${lock?'':'<div class="grab"></div>'}${h}</div></div>`;lockBody();fixVV()}
-function fixVV(){const o=document.querySelector('#sheet .ov'),v=window.visualViewport;if(o&&v){o.style.height=v.height+'px';o.style.top=v.offsetTop+'px';o.style.bottom='auto'}}
+function fixVV(){const o=document.querySelector('#sheet .ov'),v=window.visualViewport;if(!o)return;if(CK){o.classList.add('kb');o.style.height='';o.style.top='';o.style.bottom=''}else if(v){const kb=innerHeight-v.height>120;o.classList.toggle('kb',kb);if(kb){o.style.height=v.height+'px';o.style.top=v.offsetTop+'px';o.style.bottom='auto'}else{o.style.height='';o.style.top='';o.style.bottom=''}}const a=document.getElementById('am');if(a)a.scrollTop=a.scrollHeight}
 if(window.visualViewport){visualViewport.addEventListener('resize',fixVV);visualViewport.addEventListener('scroll',fixVV)}
-function closeSheet(skip){const o=document.querySelector('#sheet .ov'),t=++CS;if(o&&!skip)o.classList.add('out');setTimeout(()=>{if(t==CS){$('#sheet').innerHTML='';unlockBody()}},o?220:0)}
+function closeSheet(skip){kbClose();const o=document.querySelector('#sheet .ov'),t=++CS;if(o&&!skip)o.classList.add('out');setTimeout(()=>{if(t==CS){$('#sheet').innerHTML='';unlockBody()}},o?220:0)}
 function render(){
  $('#tabs').innerHTML=[['today','Сегодня'],['coach','ИИ-тренер'],['stats','Прогресс'],['set','Настройки']].map(([k,n])=>`<button class="${V==k?'on':''}" aria-label="${n}" onclick="go('${k}')"><svg viewBox="0 0 24 24" aria-hidden="true">${IC[k]}</svg></button>`).join('');
  if(!S.profile){$('#app').innerHTML='<h1>Калории</h1><p class="sub">Дневник питания с ИИ-тренером</p>';return openProfile()}
@@ -145,6 +206,10 @@ function saveProfile(){const g=i=>+$('#'+i).value,p={sex:$('#s_sex').value,a:g('
 let meal='b';
 let AF=null,FQ=[];
 const PLUS='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',UP='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
+function thumb(f){return new Promise(ok=>{const i=new Image();i.onload=()=>{const k=Math.min(1,240/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=Math.round(i.width*k);c.height=Math.round(i.height*k);c.getContext('2d').drawImage(i,0,0,c.width,c.height);ok(c.toDataURL('image/jpeg',.55))};i.onerror=()=>ok('');i.src=URL.createObjectURL(f)})}
+function sbtn(t){const b=t.closest('.cmp,.send').querySelector('.sb');if(b)b.disabled=!val(t)&&!AF}
+function gr(t){if(!t.textContent)t.innerHTML='';sbtn(t)}
+const val=e=>(e.innerText||e.textContent||'').trim();
 const sleep=ms=>new Promise(r=>setTimeout(r,ms)),hk=()=>cur()+'|'+meal;
 function fd(v){return new Date(v+'T12:00:00').toLocaleDateString('ru',{day:'numeric',month:'long'})}
 function dlab(v){const y=new Date();y.setDate(y.getDate()-1);return (v==today()?'Сегодня':v==y.toLocaleDateString('sv')?'Вчера':new Date(v+'T12:00:00').toLocaleDateString('ru',{weekday:'short'}))+', '+fd(v)}
@@ -156,7 +221,7 @@ function drawFq(){FQ=freq(meal);$('#fq').innerHTML=FQ.length?FQ.map((e,i)=>`<but
 function pushH(m,k){(S.hist[k]=S.hist[k]||[]).push(m);S.hist[k]=S.hist[k].slice(-40);save()}
 function pills(i){return `<div class="pl4">${[['🔥','Калории',i.k,''],['🥩','Белки',i.p,' г'],['🥑','Жиры',i.f,' г'],['🍞','Углеводы',i.c,' г']].map(([e,l,v,u],j)=>`<span style="animation-delay:${j*90}ms"><i>${e}</i><small>${l}</small><b>${v}${u}</b></span>`).join('')}</div>`}
 function resHtml(ids,day,m){const L=items(day).filter(x=>ids.includes(x.id));return L.map(i=>`<div class="rc"><div class="rt2"><div><b>${esc(i.n)}</b><small>${i.g} г</small></div><button class="x" aria-label="Удалить" onclick="rmE('${i.id}',this)">×</button></div>${pills(i)}</div>`).join('')+(L.length>1?`<small class="ok">Итого: ${L.reduce((a,x)=>a+x.k,0)} ккал</small>`:'')+`<small class="ok">✓ Добавлено · ${MEALS.find(x=>x[0]==m)[1]}</small>`}
-function msgHtml(m){return m.r=='me'?`<div class="bub me">${esc(m.t)}</div>`:`<div class="bub ai">${resHtml(m.ids,cur(),meal)}</div>`}
+function msgHtml(m){return m.r=='me'?`<div class="bub me">${m.img?`<img class="ph" alt="" src="${m.img}">`:''}${esc(m.t||'')}</div>`:`<div class="bub ai">${resHtml(m.ids,cur(),meal)}</div>`}
 function loadHist(){const c=$('#am'),H=(S.hist[hk()]||[]).filter(m=>m.r=='me'||m.ids.some(id=>items(cur()).some(x=>x.id==id))),L=items(cur()).filter(x=>x.m==meal),ref=new Set(H.flatMap(m=>m.ids||[])),un=L.filter(x=>!ref.has(x.id)),h=(un.length?[{r:'ai',ids:un.map(x=>x.id)}]:[]).concat(H);
  c.innerHTML=h.length?h.map(msgHtml).join(''):'<p class="hint">Напишите, что вы съели, или добавьте фото. Я посчитаю КБЖУ и внесу в выбранный день.</p>';c.scrollTop=1e5}
 function setMeal(m){meal=m;document.querySelectorAll('.seg button').forEach(b=>b.classList.toggle('on',b.dataset.m==m));loadHist();drawFq()}
@@ -166,9 +231,9 @@ function think(w){const ph=['Читаю запрос…','Считаю КБЖУ�
 function addEntry(o,d,day){const L=items(day);S.log[day]=L;o.id=Date.now()+Math.random().toString(36).slice(2,6);L.push(o);if(d!==false)saveFood(o.n,o.g,o.k,o.p,o.f,o.c,d||'');save();render();return o.id}
 function rmE(id,b){S.log[cur()]=items(cur()).filter(x=>x.id!=id);save();render();const r=b.closest('.rc');r.style.cssText='opacity:.3;transform:scale(.97)';b.remove()}
 function quick(i){const e=FQ[i].i,k=hk(),day=cur(),mk=meal;am(esc(e.n),'me');pushH({r:'me',t:e.n},k);const id=addEntry({m:mk,n:e.n,g:e.g,k:e.k,p:e.p,f:e.f,c:e.c},false,day),w=am('','ai'),stop=think(w);pushH({r:'ai',ids:[id]},k);sleep(800).then(()=>{stop();w.innerHTML=resHtml([id],day,mk)})}
-function attach(f){if(!f)return;AF=f;$('#mn').hidden=true;$('#pv').innerHTML=`<div class="pvi"><img alt="" src="${URL.createObjectURL(f)}"><button class="x" aria-label="Убрать фото" onclick="AF=null;$('#pv').innerHTML=''">×</button></div>`;$('#ai').placeholder='Уточните вес или состав (необязательно)'}
-async function sendFood(){const i=$('#ai'),text=i.value.trim(),f=AF;if((!text&&!f)||sendFood.b)return;sendFood.b=1;const k=hk(),day=cur(),mk=meal,mt=text||'📷 Фото';i.value='';AF=null;$('#pv').innerHTML='';i.placeholder='Например: творог 1%, 200 г';
- am(esc(mt)+(f&&text?' 📎':''),'me');pushH({r:'me',t:mt},k);const w=am('','ai'),stop=think(w),t0=Date.now();
+function attach(f){if(!f)return;AF=f;sbtn($('#ai'));$('#mn').hidden=true;$('#pv').innerHTML=`<div class="pvi"><img alt="" src="${URL.createObjectURL(f)}"><button class="x" aria-label="Убрать фото" onclick="AF=null;$('#pv').innerHTML='';sbtn($('#ai'))">×</button></div>`;$('#ai').dataset.ph='Уточните вес или состав (необязательно)'}
+async function sendFood(){const i=$('#ai'),text=val(i),f=AF;if((!text&&!f)||sendFood.b)return;sendFood.b=1;const k=hk(),day=cur(),mk=meal,mt=text||'📷 Фото';i.textContent='';kbSync();i.focus();AF=null;$('#pv').innerHTML='';i.dataset.ph='Например: творог 1%, 200 г';
+ const th=f?await thumb(f):'';am((th?`<img class="ph" alt="" src="${th}">`:'')+esc(text),'me');pushH({r:'me',t:text,img:th},k);sbtn(i);const w=am('','ai'),stop=think(w),t0=Date.now();
  try{let it;
   if(hasAPI()){const r=await callAPI(f?{mode:'photo',image:await shrink(f),text}:{mode:'dish',text});it=JSON.parse(r.replace(/```json|```/g,'')).items||[]}
   else if(!f){const rx=/([0-9]+) ?(г|гр|g)/i,g=+((text.match(rx)||[])[1])||100,q=text.replace(rx,'').trim().toLowerCase().split(/[ ,]+/)[0],x=q&&allFoods().find(y=>y[0].toLowerCase().includes(q));if(!x)throw{code:'nb'};it=[{name:x[0],grams:g,kcal:x[1]*g/100,protein:x[2]*g/100,fat:x[3]*g/100,carbs:x[4]*g/100}]}
@@ -179,7 +244,7 @@ async function sendFood(){const i=$('#ai'),text=i.value.trim(),f=AF;if((!text&&!
  catch(e){await sleep(Math.max(0,900-(Date.now()-t0)));stop();w.textContent=e.code=='rl'?'Слишком много запросов, подождите минуту.':e.code=='na'?'Для фото нужно подключить ИИ.':e.code=='nb'?'ИИ не подключён, и такого продукта нет в базе.':e.code=='empty'?'Не удалось распознать еду. Опишите подробнее.':'Не удалось посчитать. Попробуйте ещё раз.'}
  sendFood.b=0;const A=$('#am');if(A)A.scrollTop=1e5}
 function openAdd(m){const h=new Date().getHours();meal=m||(h<11?'b':h<16?'l':h<21?'d':'s');AF=null;
- sheet(`<div class="ad"><div class="adh"><h2>Добавить еду</h2><label class="dchip">📅 <span id="dl">${dlab(cur())}</span><input type="date" value="${cur()}" max="${today()}" onchange="pickDay(this.value)" aria-label="Дата"></label><button class="x" aria-label="Закрыть" onclick="closeSheet()">×</button></div><div class="seg">${MEALS.map(([k,n])=>`<button data-m="${k}" class="${k==meal?'on':''}" onclick="setMeal('${k}')">${n}</button>`).join('')}</div><div class="am" id="am"></div><div class="chips" id="fq"></div><div id="pv"></div><div class="cmp"><div class="menu" id="mn" hidden><button onclick="$('#fc').click()">Сделать фото</button><button onclick="$('#fg').click()">Из галереи</button></div><button class="pl" aria-label="Добавить фото" onclick="$('#mn').hidden=!$('#mn').hidden">${PLUS}</button><input id="ai" placeholder="Например: творог 1%, 200 г" aria-label="Что вы съели" enterkeyhint="send" autocomplete="off" onkeydown="if(event.key=='Enter')sendFood()"><button class="sb" aria-label="Отправить" onclick="sendFood()">${UP}</button><input id="fc" type="file" accept="image/*" capture="environment" hidden onchange="attach(this.files[0])"><input id="fg" type="file" accept="image/*" hidden onchange="attach(this.files[0])"></div></div>`);loadHist();drawFq()}
+ sheet(`<div class="ad"><div class="adh"><h2>Добавить еду</h2><label class="dchip">📅 <span id="dl">${dlab(cur())}</span><input type="date" value="${cur()}" max="${today()}" onchange="pickDay(this.value)" aria-label="Дата" tabindex="-1"></label><button class="x" aria-label="Закрыть" onclick="closeSheet()">×</button></div><div class="seg">${MEALS.map(([k,n])=>`<button data-m="${k}" class="${k==meal?'on':''}" onclick="setMeal('${k}')">${n}</button>`).join('')}</div><div class="am" id="am"></div><div class="chips" id="fq"></div><div id="pv"></div><div class="cmp"><div class="menu" id="mn" hidden><button onclick="$('#fc').click()">Сделать фото</button><button onclick="$('#fg').click()">Из галереи</button></div><button class="pl" aria-label="Добавить фото" onclick="attachMenu()">${PLUS}</button><div id="ai" class="ce" contenteditable="${OWNKB()?'false':'plaintext-only'}" onclick="kbOpen(this)" role="textbox" aria-multiline="true" aria-label="Что вы съели" data-ph="Например: творог 1%, 200 г" oninput="gr(this)"></div><button class="sb" aria-label="Отправить" onpointerdown="event.preventDefault()" onclick="sendFood()" disabled>${UP}</button><input id="fc" type="file" accept="image/*" capture="environment" hidden onchange="attach(this.files[0])"><input id="fg" type="file" accept="image/*" hidden onchange="attach(this.files[0])"><input id="ff" type="file" accept=".jpg,.jpeg,.png,.webp,.heic,.heif" hidden onchange="attach(this.files[0])"></div></div>`);document.querySelector('#sheet .sh').classList.add('chat');loadHist();drawFq();setTimeout(loadHist,60)}
 function allFoods(){return S.foods.map(f=>[f.n,f.k,f.p,f.f,f.c,f.d]).concat(DB)}
 const hasAPI=()=>API.startsWith('http');
 async function callAPI(o){const x=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o)});if(!x.ok)throw{code:x.status==429?'rl':'err'};return (await x.json()).text}
@@ -191,7 +256,7 @@ function ctx(){const p=S.profile,n=norm(p),c=cur(),t=tot(c),W=S.rem.wc||{from:'0
 const CH=['Что съесть на ужин?','Разбери мой день','Добавь на завтрак 200 г творога 1%','Напоминай пить воду каждые 2 часа','Поставь белки 150 г в день'];
 function bub(r,t,a){const b=document.createElement('div');b.className='bub '+(r=='user'?'me':'ai')+(a?' in':'');b.textContent=t;return b}
 function toBot(s){scrollTo({top:document.body.scrollHeight,behavior:s?'smooth':'auto'})}
-function vCoach(){return `<div class="cw"><h1>ИИ-тренер</h1><p class="sub">Знает вашу норму и рацион за сегодня</p><div class="msgs" id="chat">${S.chat.length?S.chat.map(m=>`<div class="bub ${m.role=='user'?'me':'ai'}">${esc(m.content)}</div>`).join(''):'<div class="bub ai">Привет! Подскажу, что съесть, чтобы уложиться в норму, и разберу ваш день.</div>'}</div></div><div class="comp"><div class="chips">${CH.map((t,i)=>`<button onclick="ask(CH[${i}])">${t}</button>`).join('')}</div><div class="send"><input id="ci" placeholder="Спросите тренера" aria-label="Вопрос тренеру" enterkeyhint="send" onkeydown="if(event.key=='Enter')ask()"><button class="sb" aria-label="Отправить" onclick="ask()"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div></div>`}
+function vCoach(){return `<div class="cw"><h1>ИИ-тренер</h1><p class="sub">Знает вашу норму и рацион за сегодня</p><div class="msgs" id="chat">${S.chat.length?S.chat.map(m=>`<div class="bub ${m.role=='user'?'me':'ai'}">${esc(m.content)}</div>`).join(''):'<div class="bub ai">Привет! Подскажу, что съесть, чтобы уложиться в норму, и разберу ваш день.</div>'}</div></div><div class="comp"><div class="chips">${CH.map((t,i)=>`<button onclick="ask(CH[${i}])">${t}</button>`).join('')}</div><div class="send"><div id="ci" class="ce" contenteditable="${OWNKB()?'false':'plaintext-only'}" onclick="kbOpen(this)" role="textbox" aria-multiline="true" aria-label="Вопрос тренеру" data-ph="Спросите тренера" oninput="gr(this)"></div><button class="sb" aria-label="Отправить" onpointerdown="event.preventDefault()" onclick="ask()" disabled><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div></div>`}
 function local(){const n=norm(S.profile),d=tot(today()),l=n.k-d.k,pl=n.p-d.p;return `Сегодня съедено ${d.k} из ${n.k} ккал. `+(l>0?`Осталось ${l} ккал`+(pl>10?` и ещё около ${R(pl)} г белка — подойдут творог, куриная грудка или яйца.`:'.'):`Норма превышена на ${-l} ккал — на ужин лучше лёгкий белковый вариант и овощи.`)+'\n\nЭто упрощённый совет без ИИ: полноценные ответы появятся после подключения вашего API.'}
 function saveFood(n,g,k,p,f,c,d){if(!g)return;const x={n:String(n).slice(0,60),d:String(d||'').slice(0,120),k:R(k/g*100),p:+(p/g*100).toFixed(1),f:+(f/g*100).toFixed(1),c:+(c/g*100).toFixed(1)},i=S.foods.findIndex(y=>y.n.toLowerCase()==x.n.toLowerCase());if(i>=0)S.foods[i]=x;else S.foods.unshift(x);S.foods=S.foods.slice(0,300)}
 let UNDO=null;
@@ -212,7 +277,7 @@ function applyActions(L){const out=[];if(!Array.isArray(L)||!L.length)return out
  case 'add_water':{const ml=R(num(a.ml,0,2000));if(!ml)break;S.water[d]=(S.water[d]||0)+ml;out.push(`Вода +${ml} мл`);break}
  case 'add_weight':{const kg=num(a.kg,35,250);if(!kg)break;const W=S.weights;if(W.length&&W.at(-1).d==d)W.at(-1).w=kg;else W.push({d,w:kg});S.profile.w=kg;out.push(`Вес: ${kg} кг`);break}
  }}catch(e){}});save();return out}
-async function ask(t){const i=$('#ci'),text=(t||(i&&i.value)||'').trim();if(!text||ask.b)return;if(i)i.value='';ask.b=1;const c=$('#chat');if(!S.chat.length)c.innerHTML='';
+async function ask(t){const i=$('#ci'),text=(t||(i&&val(i))||'').trim();if(!text||ask.b)return;if(i){i.textContent='';kbSync();i.focus();sbtn(i)}ask.b=1;const c=$('#chat');if(!S.chat.length)c.innerHTML='';
  c.append(bub('user',text,1));const box=bub('ai','',1);box.innerHTML='<span class="dots"><i></i><i></i><i></i></span>';c.append(box);const turns=S.chat.slice(-8).map(m=>({...m}));while(turns.length&&turns[0].role!='user')turns.shift();S.chat.push({role:'user',content:text});toBot(1);
  let out='',acts=[];
  try{if(!hasAPI())throw{code:'na'};const raw=await callAPI({mode:'chat',context:ctx(),messages:turns.concat({role:'user',content:text})});let o;try{o=JSON.parse(raw.replace(/```json|```/g,''))}catch(e){o={reply:raw}}out=String(o.reply||'Готово.');acts=applyActions(o.actions)}
@@ -233,6 +298,7 @@ function vSet(){const p=S.profile,n=norm(p),fk=['b','l','d','s'],W=S.rem.wc||{fr
  <section class="card"><div class="mh"><h3>Уведомления о еде</h3><button class="sw ${any?'on':''}" role="switch" aria-checked="${any}" aria-label="Все уведомления о еде" onclick="setGroup(['b','l','d','s'])"></button></div>${REM.filter(r=>fk.includes(r[0])).map(row).join('')}</section>
  <section class="card"><div class="mh"><h3>Уведомления о воде</h3>${sw('w')}</div><div class="row"><span>С</span><input type="time" value="${W.from}" aria-label="Начало" onchange="wc('from',this.value)"></div><div class="row"><span>До</span><input type="time" value="${W.to}" aria-label="Конец" onchange="wc('to',this.value)"></div><div class="row"><span>Напоминать каждые</span><select style="width:auto;margin:0" aria-label="Интервал" onchange="wc('ev',+this.value)">${[1,2,3].map(h=>`<option value="${h}" ${W.ev==h?'selected':''}>${h} ч</option>`).join('')}</select></div></section>
  <section class="card"><div class="mh"><h3>Итоги дня</h3></div>${row(REM.find(r=>r[0]=='e'))}<p class="em">${permTxt()}</p></section>
+ <section class="card"><div class="mh"><h3>Встроенная клавиатура</h3><button class="sw ${OWNKB()?'on':''}" role="switch" aria-checked="${OWNKB()}" aria-label="Встроенная клавиатура" onclick="toggleKb()"></button></div><p class="em">Убирает панель со стрелками над клавиатурой iPhone. Выключите, чтобы вернуть системную клавиатуру.</p></section>
  <section class="card"><h3>Данные</h3><p class="em">Дневник хранится в этом браузере на вашем устройстве.</p><button class="ghost" onclick="if(confirm('Удалить весь дневник и профиль?')){S={profile:null,log:{},water:{},weights:[],custom:null,foods:[],hist:{},rem:{on:{},t:{},fired:{}},chat:[]};save();render()}">Удалить все данные</button></section>`}
 function wc(k,v){S.rem.wc=S.rem.wc||{from:'09:00',to:'21:00',ev:2};S.rem.wc[k]=v;save()}
 async function setGroup(ks){const on=!ks.some(k=>S.rem.on[k]);if(on&&'Notification' in window&&Notification.permission=='default'){try{await Notification.requestPermission()}catch(e){}}ks.forEach(k=>S.rem.on[k]=on);save();render()}
@@ -259,5 +325,51 @@ setInterval(()=>{if(PUSH)return;const hm=new Date().toTimeString().slice(0,5),d=
  document.addEventListener('pointermove',e=>{if(!on)return;dy=Math.max(0,e.clientY-y0);sh.style.transform=`translateY(${dy}px)`;sh.parentNode.style.background=`rgba(0,0,0,${.45*(1-Math.min(1,dy/400))})`},{passive:true});
  const end=()=>{if(!on)return;on=false;const o=sh.parentNode;if(dy>110||dy/(Date.now()-t0+1)>.6){sh.style.transition='transform .22s ease';sh.style.transform='translateY(100%)';o.style.transition='background .22s';o.style.background='transparent';closeSheet(1)}else{sh.style.transition='transform .25s cubic-bezier(.2,.8,.2,1)';sh.style.transform='';o.style.background=''}};
  document.addEventListener('pointerup',end);document.addEventListener('pointercancel',end)})();
+document.addEventListener('touchmove',e=>{if(!document.querySelector('#sheet .ov'))return;let n=e.target;while(n&&n!==document.body&&n.nodeType==1){const c=getComputedStyle(n);if((/(auto|scroll)/.test(c.overflowY)&&n.scrollHeight>n.clientHeight+1)||(/(auto|scroll)/.test(c.overflowX)&&n.scrollWidth>n.clientWidth+1))return;n=n.parentNode}e.preventDefault()},{passive:false});
+let CK=false,CKh=0,KT=null,KL='ru',LL='ru',SH=1,KS=0,KP=0,KHT=0;
+const KH=228,SAFE=(()=>{try{const p=document.createElement('div');p.style.cssText='position:fixed;left:0;bottom:0;width:1px;height:env(safe-area-inset-bottom,0px);visibility:hidden';document.body.append(p);const h=p.offsetHeight;p.remove();return h||0}catch(e){return 0}})();
+const OWNKB=()=>S.ownKb!==false,ALT={'е':'ё','ь':'ъ'};
+const KR={ru:['йцукенгшщзх','фывапролджэ','ячсмитьбю'],en:['qwertyuiop','asdfghjkl','zxcvbnm'],num:['1234567890','-/:;()₽&@"',".,?!'"],sym:['[]{}#%^*+=','_\\|~<>€£¥•',".,?!'"]};
+const EMO=Array.from('🍎🍌🍇🍓🥑🥦🥕🌽🍞🥐🧀🥚🥓🍗🍖🥩🍕🍔🍟🌭🥪🌮🍜🍝🍣🍱🍚🍲🥗🍦🍰🍫☕🍵🥛🍺😀😊😅😋😍😉😎🤔👍👌🙏💪🔥');
+const SV=p=>`<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+const BS='<svg viewBox="0 0 28 20" width="28" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.6 2h13.4A3 3 0 0 1 26 5v10a3 3 0 0 1-3 3H9.6a3 3 0 0 1-2.2-.96L2.5 11.4a2.2 2.2 0 0 1 0-2.8l4.9-5.64A3 3 0 0 1 9.6 2z"/><path d="M13.2 7l6.6 6M19.8 7l-6.6 6"/></svg>',RET=SV('<path d="M20 6v6a2 2 0 0 1-2 2H5M9 10l-4 4 4 4"/>'),EMI=SV('<circle cx="12" cy="12" r="9"/><path d="M8.5 14c1 1.5 2.2 2.2 3.5 2.2s2.5-.7 3.5-2.2M9 9.5h.01M15 9.5h.01"/>'),SHI=SV('<path d="M12 4l8 9h-5v6H9v-6H4z"/>');
+function kbHtml(){const ky=c=>`<button class="k l" data-k="${esc(c)}">${esc(c)}</button>`,b=(k,h,x='')=>`<button class="k sp ${x}" data-k="${k}">${h}</button>`,abc=`<span class="abc">${LL=='ru'?'АБВ':'ABC'}</span>`;
+ const lay=L=>{const lt=L=='ru'||L=='en',R=KR[L];return `<div class="ly" data-l="${L}" ${L==KL?'':'hidden'}><div class="kr">${[...R[0]].map(ky).join('')}</div><div class="kr${L=='en'?' p1':''}">${[...R[1]].map(ky).join('')}</div><div class="kr">${lt?b('shift',SHI):b(L=='num'?'sym':'num',L=='num'?'#+=':'123')}${[...R[2]].map(ky).join('')}${b('bs',BS)}</div><div class="kr">${b(lt?'num':'abc',lt?'123':abc,'w14')}${b('emo',EMI,'w14')}<button class="k w44" data-k=" ">${lt?`<span class="lg" data-k="lang">${L=='ru'?'ру':'en'}</span>`:''}</button>${b('ret',RET,'w22')}</div></div>`};
+ return ['ru','en','num','sym'].map(lay).join('')+`<div class="ly" data-l="emo" hidden><div class="eg">${EMO.map(e=>`<button class="k e" data-k="${e}">${e}</button>`).join('')}</div><div class="kr">${b('abc',abc,'w14')}<button class="k w44" data-k=" "></button>${b('bs',BS,'w22')}</div></div>`}
+let LS='';
+function showLy(){const K=$('#vk');if(!K)return;const st=KL+'|'+(SH>0)+'|'+(SH==2)+'|'+LL;if(st==LS)return;LS=st;K.querySelectorAll('.ly').forEach(x=>x.hidden=x.dataset.l!=KL);K.classList.toggle('up',SH>0);K.classList.toggle('caps',SH==2);K.querySelectorAll('.abc').forEach(x=>x.textContent=LL=='ru'?'АБВ':'ABC')}
+function press(k){const el=KT;if(!el)return;const lt=KL=='ru'||KL=='en';
+ if(k=='shift'){const n=Date.now();SH=(n-KS<350)?2:(SH?0:1);KS=n;return showLy()}
+ if(k=='num'||k=='sym'||k=='emo'){KL=k;return showLy()}
+ if(k=='abc'){KL=LL;return showLy()}
+ if(k=='lang'){LL=KL=(KL=='ru'?'en':'ru');return showLy()}
+ if(k=='bs')el.textContent=Array.from(el.textContent).slice(0,-1).join('');
+ else{let c=k=='ret'?'\n':k;if(lt&&SH>0)c=c.toUpperCase();el.textContent+=c;if(lt&&SH==1)SH=0}
+ gr(el);el.scrollTop=el.scrollHeight;kbSync()}
+function kbSync(){if(!CK||!KT)return;const t=KT.textContent;if(SH!=2&&(KL=='ru'||KL=='en'))SH=(!t||/[.!?]\s$/.test(t)||/\n$/.test(t))?1:0;showLy()}
+function applyKb(){document.documentElement.style.setProperty('--kb',CKh+'px');document.body.classList.add('kbd');fixVV();if(V=='coach')toBot()}
+function kbOpen(el){if(!OWNKB())return;KT=el;document.querySelectorAll('.ce').forEach(e=>e.classList.toggle('act',e==el));
+ if(CK&&!document.getElementById('vk'))CK=false;
+ if(CK){kbSync();return}
+ const host=el.closest('.sh')||el.closest('.comp');if(!host)return;
+ CK=true;KL=LL;SH=1;LS='';const K=document.createElement('div');K.id='vk';K.className='vk';K.innerHTML=kbHtml();host.append(K);
+ K.addEventListener('pointerdown',e=>{e.preventDefault();const b=e.target.closest('[data-k]');if(!b)return;b.classList.add('dn');const k=b.dataset.k;if(b.classList.contains('l'))showPop(b,K);
+  if(k=='bs'){press('bs');clearTimeout(KHT);KHT=setTimeout(function r(){press('bs');KHT=setTimeout(r,60)},420);return}
+  if(KL=='ru'&&ALT[k]){KP={k,t:setTimeout(()=>{KP.l=1;press(ALT[k])},420)};return}
+  press(k)});
+ const up=()=>{hidePop();clearTimeout(KHT);K.querySelectorAll('.dn').forEach(x=>x.classList.remove('dn'));if(KP){clearTimeout(KP.t);const p=KP;KP=0;if(!p.l)press(p.k)}};
+ K.addEventListener('pointerup',up);K.addEventListener('pointercancel',up);
+ if(host.classList.contains('sh'))host.closest('.ov').classList.add('kb');else document.body.classList.add('kbd');
+ kbSync();setTimeout(()=>{const m=document.getElementById('am');if(m)m.scrollTop=m.scrollHeight;if(V=='coach')toBot()},30)}
+function showPop(b){hidePop();const r=b.getBoundingClientRect(),c=document.createElement('div'),up=SH>0&&(KL=='ru'||KL=='en');c.className='kp';c.id='kpop';c.textContent=up?b.textContent.toUpperCase():b.textContent;const w=Math.round(r.width*1.45),h=Math.round(r.height*1.25);let x=r.left-(w-r.width)/2;x=Math.max(2,Math.min(innerWidth-w-2,x));c.style.cssText=`width:${w}px;height:${h}px;left:${x}px;top:${r.top-h+1}px`;document.body.append(c)}
+function hidePop(){const c=document.getElementById('kpop');if(c)c.remove()}
+function attachMenu(){kbClose();const i=document.getElementById('fg');if(i)i.click()}
+function asClose(){const d=document.getElementById('asw');if(d)d.remove()}
+function asPick(id){const i=document.getElementById(id);asClose();if(i)i.click()}
+function kbClose(){if(!CK)return;hidePop();CK=false;clearTimeout(KHT);const K=document.getElementById('vk');if(K)K.remove();document.querySelectorAll('.ce.act').forEach(e=>e.classList.remove('act'));document.querySelectorAll('.ov.kb').forEach(e=>e.classList.remove('kb'));document.body.classList.remove('kbd');fixVV()}
+function toggleKb(){S.ownKb=!OWNKB();save();kbClose();render()}
+document.addEventListener('pointerdown',e=>{if(CK&&!e.target.closest('#vk,.ce,.cmp,.send,.comp,.menu'))kbClose()});
+document.addEventListener('touchmove',e=>{if(CK&&e.target.closest('#vk')&&!e.target.closest('.eg'))e.preventDefault()},{passive:false});
+if(window.visualViewport){const kbFix=()=>{if(CK)return;const v=visualViewport;document.documentElement.style.setProperty('--kb',Math.max(0,innerHeight-v.height-v.offsetTop)+'px');document.body.classList.toggle('kbd',innerHeight-v.height>120);if(V=='coach'&&innerHeight-v.height>120)setTimeout(()=>toBot(),60)};visualViewport.addEventListener('resize',kbFix);visualViewport.addEventListener('scroll',kbFix)}
 render();schedSync();
 </script></body></html>
