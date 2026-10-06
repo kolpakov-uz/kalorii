@@ -149,6 +149,11 @@ html,body,.vk,.vk *{touch-action:manipulation}
 .ov.kb .sh.chat{height:100%!important;max-height:100%!important;padding-bottom:0!important}
 .sh .vk{margin:0 -18px!important;width:auto;max-width:none;background:var(--card)}
 .cmp .sb,.send .sb{transition:opacity .2s}.cmp .sb:disabled,.send .sb:disabled{transform:none}
+.pl{position:relative;overflow:hidden;-webkit-tap-highlight-color:transparent}.pl input{position:absolute;inset:0;width:100%;height:100%;opacity:0;margin:0;padding:0;border:0;border-radius:0;background:none;cursor:pointer}
+.ce .cr{display:none;width:2px;height:1.15em;margin:0 -1px;vertical-align:text-bottom;background:var(--acc)}
+.ce.act .cr{display:inline-block;animation:cb 1s steps(2,start) infinite}.ce.hc.act::after{display:none}
+.vk.trk .k{color:transparent!important;background:var(--k2)!important}.vk.trk .k svg,.vk.trk .lg{opacity:0}
+.vk,.vk *{touch-action:none}.eg,.eg *{touch-action:pan-y}
 </style></head><body>
 <div id="app"></div><div id="sheet"></div><nav class="tabs"><div id="tabs"></div></nav><div id="toast" role="status"></div>
 <script>
@@ -221,8 +226,8 @@ function drawFq(){FQ=freq(meal);$('#fq').innerHTML=FQ.length?FQ.map((e,i)=>`<but
 function pushH(m,k){(S.hist[k]=S.hist[k]||[]).push(m);S.hist[k]=S.hist[k].slice(-40);save()}
 function pills(i){return `<div class="pl4">${[['🔥','Калории',i.k,''],['🥩','Белки',i.p,' г'],['🥑','Жиры',i.f,' г'],['🍞','Углеводы',i.c,' г']].map(([e,l,v,u],j)=>`<span style="animation-delay:${j*90}ms"><i>${e}</i><small>${l}</small><b>${v}${u}</b></span>`).join('')}</div>`}
 function resHtml(ids,day,m){const L=items(day).filter(x=>ids.includes(x.id));return L.map(i=>`<div class="rc"><div class="rt2"><div><b>${esc(i.n)}</b><small>${i.g} г</small></div><button class="x" aria-label="Удалить" onclick="rmE('${i.id}',this)">×</button></div>${pills(i)}</div>`).join('')+(L.length>1?`<small class="ok">Итого: ${L.reduce((a,x)=>a+x.k,0)} ккал</small>`:'')+`<small class="ok">✓ Добавлено · ${MEALS.find(x=>x[0]==m)[1]}</small>`}
-function msgHtml(m){return m.r=='me'?`<div class="bub me">${m.img?`<img class="ph" alt="" src="${m.img}">`:''}${esc(m.t||'')}</div>`:`<div class="bub ai">${resHtml(m.ids,cur(),meal)}</div>`}
-function loadHist(){const c=$('#am'),H=(S.hist[hk()]||[]).filter(m=>m.r=='me'||m.ids.some(id=>items(cur()).some(x=>x.id==id))),L=items(cur()).filter(x=>x.m==meal),ref=new Set(H.flatMap(m=>m.ids||[])),un=L.filter(x=>!ref.has(x.id)),h=(un.length?[{r:'ai',ids:un.map(x=>x.id)}]:[]).concat(H);
+function msgHtml(m){return m.r=='me'?`<div class="bub me">${m.img?`<img class="ph" alt="" src="${m.img}">`:''}${esc(m.t||'')}</div>`:(m.t?`<div class="bub ai">${esc(m.t)}</div>`:`<div class="bub ai">${resHtml(m.ids,cur(),meal)}</div>`)}
+function loadHist(){const c=$('#am'),H=(S.hist[hk()]||[]).filter(m=>m.r=='me'||m.t||m.ids.some(id=>items(cur()).some(x=>x.id==id))),L=items(cur()).filter(x=>x.m==meal),ref=new Set(H.flatMap(m=>m.ids||[])),un=L.filter(x=>!ref.has(x.id)),h=(un.length?[{r:'ai',ids:un.map(x=>x.id)}]:[]).concat(H);
  c.innerHTML=h.length?h.map(msgHtml).join(''):'<p class="hint">Напишите, что вы съели, или добавьте фото. Я посчитаю КБЖУ и внесу в выбранный день.</p>';c.scrollTop=1e5}
 function setMeal(m){meal=m;document.querySelectorAll('.seg button').forEach(b=>b.classList.toggle('on',b.dataset.m==m));loadHist();drawFq()}
 function pickDay(v){if(!v)return;setDay(v);const l=$('#dl');if(l)l.textContent=dlab(cur());loadHist();drawFq()}
@@ -232,19 +237,19 @@ function addEntry(o,d,day){const L=items(day);S.log[day]=L;o.id=Date.now()+Math.
 function rmE(id,b){S.log[cur()]=items(cur()).filter(x=>x.id!=id);save();render();const r=b.closest('.rc');r.style.cssText='opacity:.3;transform:scale(.97)';b.remove()}
 function quick(i){const e=FQ[i].i,k=hk(),day=cur(),mk=meal;am(esc(e.n),'me');pushH({r:'me',t:e.n},k);const id=addEntry({m:mk,n:e.n,g:e.g,k:e.k,p:e.p,f:e.f,c:e.c},false,day),w=am('','ai'),stop=think(w);pushH({r:'ai',ids:[id]},k);sleep(800).then(()=>{stop();w.innerHTML=resHtml([id],day,mk)})}
 function attach(f){if(!f)return;AF=f;sbtn($('#ai'));$('#mn').hidden=true;$('#pv').innerHTML=`<div class="pvi"><img alt="" src="${URL.createObjectURL(f)}"><button class="x" aria-label="Убрать фото" onclick="AF=null;$('#pv').innerHTML='';sbtn($('#ai'))">×</button></div>`;$('#ai').dataset.ph='Уточните вес или состав (необязательно)'}
-async function sendFood(){const i=$('#ai'),text=val(i),f=AF;if((!text&&!f)||sendFood.b)return;sendFood.b=1;const k=hk(),day=cur(),mk=meal,mt=text||'📷 Фото';i.textContent='';kbSync();i.focus();AF=null;$('#pv').innerHTML='';i.dataset.ph='Например: творог 1%, 200 г';
+async function sendFood(){const i=$('#ai'),text=val(i),f=AF;if((!text&&!f)||sendFood.b)return;sendFood.b=1;const k=hk(),day=cur(),mk=meal,mt=text||'📷 Фото';i.textContent='';kbSync(1);i.focus();AF=null;$('#pv').innerHTML='';i.dataset.ph='Например: творог 1%, 200 г';
  const th=f?await thumb(f):'';am((th?`<img class="ph" alt="" src="${th}">`:'')+esc(text),'me');pushH({r:'me',t:text,img:th},k);sbtn(i);const w=am('','ai'),stop=think(w),t0=Date.now();
  try{let it;
-  if(hasAPI()){const r=await callAPI(f?{mode:'photo',image:await shrink(f),text}:{mode:'dish',text});it=JSON.parse(r.replace(/```json|```/g,'')).items||[]}
+  if(hasAPI()){const r=await callAPI(f?{mode:'photo',image:await shrink(f),text}:{mode:'dish',text});const o=JSON.parse(r.replace(/```json|```/g,''));it=o.items||[];if(!it.length&&o.reply)throw{code:'reply',text:String(o.reply)}}
   else if(!f){const rx=/([0-9]+) ?(г|гр|g)/i,g=+((text.match(rx)||[])[1])||100,q=text.replace(rx,'').trim().toLowerCase().split(/[ ,]+/)[0],x=q&&allFoods().find(y=>y[0].toLowerCase().includes(q));if(!x)throw{code:'nb'};it=[{name:x[0],grams:g,kcal:x[1]*g/100,protein:x[2]*g/100,fat:x[3]*g/100,carbs:x[4]*g/100}]}
   else throw{code:'na'};
   if(!it.length)throw{code:'empty'};
   const ids=it.map(x=>addEntry({m:mk,n:String(x.name||text||'Блюдо').slice(0,60),g:R(+x.grams)||100,k:R(+x.kcal||0),p:R(+x.protein||0),f:R(+x.fat||0),c:R(+x.carbs||0)},text,day));
   await sleep(Math.max(0,1400-(Date.now()-t0)));stop();pushH({r:'ai',ids},k);w.innerHTML=resHtml(ids,day,mk)}
- catch(e){await sleep(Math.max(0,900-(Date.now()-t0)));stop();w.textContent=e.code=='rl'?'Слишком много запросов, подождите минуту.':e.code=='na'?'Для фото нужно подключить ИИ.':e.code=='nb'?'ИИ не подключён, и такого продукта нет в базе.':e.code=='empty'?'Не удалось распознать еду. Опишите подробнее.':'Не удалось посчитать. Попробуйте ещё раз.'}
+ catch(e){await sleep(Math.max(0,900-(Date.now()-t0)));stop();if(e.code=='reply')pushH({r:'ai',t:e.text},k);w.textContent=e.code=='reply'?e.text:e.code=='rl'?'Слишком много запросов, подождите минуту.':e.code=='na'?'Для фото нужно подключить ИИ.':e.code=='nb'?'ИИ не подключён, и такого продукта нет в базе.':e.code=='empty'?'Не удалось распознать еду. Опишите подробнее.':'Не удалось посчитать. Попробуйте ещё раз.'}
  sendFood.b=0;const A=$('#am');if(A)A.scrollTop=1e5}
 function openAdd(m){const h=new Date().getHours();meal=m||(h<11?'b':h<16?'l':h<21?'d':'s');AF=null;
- sheet(`<div class="ad"><div class="adh"><h2>Добавить еду</h2><label class="dchip">📅 <span id="dl">${dlab(cur())}</span><input type="date" value="${cur()}" max="${today()}" onchange="pickDay(this.value)" aria-label="Дата" tabindex="-1"></label><button class="x" aria-label="Закрыть" onclick="closeSheet()">×</button></div><div class="seg">${MEALS.map(([k,n])=>`<button data-m="${k}" class="${k==meal?'on':''}" onclick="setMeal('${k}')">${n}</button>`).join('')}</div><div class="am" id="am"></div><div class="chips" id="fq"></div><div id="pv"></div><div class="cmp"><div class="menu" id="mn" hidden><button onclick="$('#fc').click()">Сделать фото</button><button onclick="$('#fg').click()">Из галереи</button></div><button class="pl" aria-label="Добавить фото" onclick="attachMenu()">${PLUS}</button><div id="ai" class="ce" contenteditable="${OWNKB()?'false':'plaintext-only'}" onclick="kbOpen(this)" role="textbox" aria-multiline="true" aria-label="Что вы съели" data-ph="Например: творог 1%, 200 г" oninput="gr(this)"></div><button class="sb" aria-label="Отправить" onpointerdown="event.preventDefault()" onclick="sendFood()" disabled>${UP}</button><input id="fc" type="file" accept="image/*" capture="environment" hidden onchange="attach(this.files[0])"><input id="fg" type="file" accept="image/*" hidden onchange="attach(this.files[0])"><input id="ff" type="file" accept=".jpg,.jpeg,.png,.webp,.heic,.heif" hidden onchange="attach(this.files[0])"></div></div>`);document.querySelector('#sheet .sh').classList.add('chat');loadHist();drawFq();setTimeout(loadHist,60)}
+ sheet(`<div class="ad"><div class="adh"><h2>Добавить еду</h2><label class="dchip">📅 <span id="dl">${dlab(cur())}</span><input type="date" value="${cur()}" max="${today()}" onchange="pickDay(this.value)" aria-label="Дата" tabindex="-1"></label><button class="x" aria-label="Закрыть" onclick="closeSheet()">×</button></div><div class="seg">${MEALS.map(([k,n])=>`<button data-m="${k}" class="${k==meal?'on':''}" onclick="setMeal('${k}')">${n}</button>`).join('')}</div><div class="am" id="am"></div><div class="chips" id="fq"></div><div id="pv"></div><div class="cmp"><div class="menu" id="mn" hidden><button onclick="$('#fc').click()">Сделать фото</button><button onclick="$('#fg').click()">Из галереи</button></div><label class="pl" aria-label="Добавить фото">${PLUS}<input id="fg" type="file" accept="image/*" onchange="attach(this.files[0])"></label><div id="ai" class="ce" contenteditable="${OWNKB()?'false':'plaintext-only'}" onclick="kbOpen(this,event)" role="textbox" aria-multiline="true" aria-label="Что вы съели" data-ph="Например: творог 1%, 200 г" oninput="gr(this)"></div><button class="sb" aria-label="Отправить" onpointerdown="event.preventDefault()" onclick="sendFood()" disabled>${UP}</button><input id="fc" type="file" accept="image/*" capture="environment" hidden onchange="attach(this.files[0])"><input id="ff" type="file" accept=".jpg,.jpeg,.png,.webp,.heic,.heif" hidden onchange="attach(this.files[0])"></div></div>`);document.querySelector('#sheet .sh').classList.add('chat');loadHist();drawFq();setTimeout(loadHist,60)}
 function allFoods(){return S.foods.map(f=>[f.n,f.k,f.p,f.f,f.c,f.d]).concat(DB)}
 const hasAPI=()=>API.startsWith('http');
 async function callAPI(o){const x=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o)});if(!x.ok)throw{code:x.status==429?'rl':'err'};return (await x.json()).text}
@@ -256,7 +261,7 @@ function ctx(){const p=S.profile,n=norm(p),c=cur(),t=tot(c),W=S.rem.wc||{from:'0
 const CH=['Что съесть на ужин?','Разбери мой день','Добавь на завтрак 200 г творога 1%','Напоминай пить воду каждые 2 часа','Поставь белки 150 г в день'];
 function bub(r,t,a){const b=document.createElement('div');b.className='bub '+(r=='user'?'me':'ai')+(a?' in':'');b.textContent=t;return b}
 function toBot(s){scrollTo({top:document.body.scrollHeight,behavior:s?'smooth':'auto'})}
-function vCoach(){return `<div class="cw"><h1>ИИ-тренер</h1><p class="sub">Знает вашу норму и рацион за сегодня</p><div class="msgs" id="chat">${S.chat.length?S.chat.map(m=>`<div class="bub ${m.role=='user'?'me':'ai'}">${esc(m.content)}</div>`).join(''):'<div class="bub ai">Привет! Подскажу, что съесть, чтобы уложиться в норму, и разберу ваш день.</div>'}</div></div><div class="comp"><div class="chips">${CH.map((t,i)=>`<button onclick="ask(CH[${i}])">${t}</button>`).join('')}</div><div class="send"><div id="ci" class="ce" contenteditable="${OWNKB()?'false':'plaintext-only'}" onclick="kbOpen(this)" role="textbox" aria-multiline="true" aria-label="Вопрос тренеру" data-ph="Спросите тренера" oninput="gr(this)"></div><button class="sb" aria-label="Отправить" onpointerdown="event.preventDefault()" onclick="ask()" disabled><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div></div>`}
+function vCoach(){return `<div class="cw"><h1>ИИ-тренер</h1><p class="sub">Знает вашу норму и рацион за сегодня</p><div class="msgs" id="chat">${S.chat.length?S.chat.map(m=>`<div class="bub ${m.role=='user'?'me':'ai'}">${esc(m.content)}</div>`).join(''):'<div class="bub ai">Привет! Подскажу, что съесть, чтобы уложиться в норму, и разберу ваш день.</div>'}</div></div><div class="comp"><div class="chips">${CH.map((t,i)=>`<button onclick="ask(CH[${i}])">${t}</button>`).join('')}</div><div class="send"><div id="ci" class="ce" contenteditable="${OWNKB()?'false':'plaintext-only'}" onclick="kbOpen(this,event)" role="textbox" aria-multiline="true" aria-label="Вопрос тренеру" data-ph="Спросите тренера" oninput="gr(this)"></div><button class="sb" aria-label="Отправить" onpointerdown="event.preventDefault()" onclick="ask()" disabled><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div></div>`}
 function local(){const n=norm(S.profile),d=tot(today()),l=n.k-d.k,pl=n.p-d.p;return `Сегодня съедено ${d.k} из ${n.k} ккал. `+(l>0?`Осталось ${l} ккал`+(pl>10?` и ещё около ${R(pl)} г белка — подойдут творог, куриная грудка или яйца.`:'.'):`Норма превышена на ${-l} ккал — на ужин лучше лёгкий белковый вариант и овощи.`)+'\n\nЭто упрощённый совет без ИИ: полноценные ответы появятся после подключения вашего API.'}
 function saveFood(n,g,k,p,f,c,d){if(!g)return;const x={n:String(n).slice(0,60),d:String(d||'').slice(0,120),k:R(k/g*100),p:+(p/g*100).toFixed(1),f:+(f/g*100).toFixed(1),c:+(c/g*100).toFixed(1)},i=S.foods.findIndex(y=>y.n.toLowerCase()==x.n.toLowerCase());if(i>=0)S.foods[i]=x;else S.foods.unshift(x);S.foods=S.foods.slice(0,300)}
 let UNDO=null;
@@ -277,7 +282,7 @@ function applyActions(L){const out=[];if(!Array.isArray(L)||!L.length)return out
  case 'add_water':{const ml=R(num(a.ml,0,2000));if(!ml)break;S.water[d]=(S.water[d]||0)+ml;out.push(`Вода +${ml} мл`);break}
  case 'add_weight':{const kg=num(a.kg,35,250);if(!kg)break;const W=S.weights;if(W.length&&W.at(-1).d==d)W.at(-1).w=kg;else W.push({d,w:kg});S.profile.w=kg;out.push(`Вес: ${kg} кг`);break}
  }}catch(e){}});save();return out}
-async function ask(t){const i=$('#ci'),text=(t||(i&&val(i))||'').trim();if(!text||ask.b)return;if(i){i.textContent='';kbSync();i.focus();sbtn(i)}ask.b=1;const c=$('#chat');if(!S.chat.length)c.innerHTML='';
+async function ask(t){const i=$('#ci'),text=(t||(i&&val(i))||'').trim();if(!text||ask.b)return;if(i){i.textContent='';kbSync(1);i.focus();sbtn(i)}ask.b=1;const c=$('#chat');if(!S.chat.length)c.innerHTML='';
  c.append(bub('user',text,1));const box=bub('ai','',1);box.innerHTML='<span class="dots"><i></i><i></i><i></i></span>';c.append(box);const turns=S.chat.slice(-8).map(m=>({...m}));while(turns.length&&turns[0].role!='user')turns.shift();S.chat.push({role:'user',content:text});toBot(1);
  let out='',acts=[];
  try{if(!hasAPI())throw{code:'na'};const raw=await callAPI({mode:'chat',context:ctx(),messages:turns.concat({role:'user',content:text})});let o;try{o=JSON.parse(raw.replace(/```json|```/g,''))}catch(e){o={reply:raw}}out=String(o.reply||'Готово.');acts=applyActions(o.actions)}
@@ -297,7 +302,7 @@ function vSet(){const p=S.profile,n=norm(p),fk=['b','l','d','s'],W=S.rem.wc||{fr
  return `<h1>Настройки</h1><section class="card"><div class="mh"><h3>Дневная норма</h3></div><p class="em">${n.k} ккал · белки ${n.p} г · жиры ${n.f} г · углеводы ${n.c} г${S.custom?' · изменено вручную':''}</p><div class="g2"><button class="sm" onclick="openMacros()">Настроить БЖУ</button><button class="sm" onclick="openProfile()">Данные и цель</button></div></section>
  <section class="card"><div class="mh"><h3>Уведомления о еде</h3><button class="sw ${any?'on':''}" role="switch" aria-checked="${any}" aria-label="Все уведомления о еде" onclick="setGroup(['b','l','d','s'])"></button></div>${REM.filter(r=>fk.includes(r[0])).map(row).join('')}</section>
  <section class="card"><div class="mh"><h3>Уведомления о воде</h3>${sw('w')}</div><div class="row"><span>С</span><input type="time" value="${W.from}" aria-label="Начало" onchange="wc('from',this.value)"></div><div class="row"><span>До</span><input type="time" value="${W.to}" aria-label="Конец" onchange="wc('to',this.value)"></div><div class="row"><span>Напоминать каждые</span><select style="width:auto;margin:0" aria-label="Интервал" onchange="wc('ev',+this.value)">${[1,2,3].map(h=>`<option value="${h}" ${W.ev==h?'selected':''}>${h} ч</option>`).join('')}</select></div></section>
- <section class="card"><div class="mh"><h3>Итоги дня</h3></div>${row(REM.find(r=>r[0]=='e'))}<p class="em">${permTxt()}</p></section>
+ <section class="card"><div class="mh"><h3>Итоги дня</h3></div>${row(REM.find(r=>r[0]=='e'))}<p class="em">${permTxt()}</p><button class="ghost" onclick="testServerPush()">Проверить серверные пуши</button><p class="em" id="pt"></p></section>
  <section class="card"><div class="mh"><h3>Встроенная клавиатура</h3><button class="sw ${OWNKB()?'on':''}" role="switch" aria-checked="${OWNKB()}" aria-label="Встроенная клавиатура" onclick="toggleKb()"></button></div><p class="em">Убирает панель со стрелками над клавиатурой iPhone. Выключите, чтобы вернуть системную клавиатуру.</p></section>
  <section class="card"><h3>Данные</h3><p class="em">Дневник хранится в этом браузере на вашем устройстве.</p><button class="ghost" onclick="if(confirm('Удалить весь дневник и профиль?')){S={profile:null,log:{},water:{},weights:[],custom:null,foods:[],hist:{},rem:{on:{},t:{},fired:{}},chat:[]};save();render()}">Удалить все данные</button></section>`}
 function wc(k,v){S.rem.wc=S.rem.wc||{from:'09:00',to:'21:00',ev:2};S.rem.wc[k]=v;save()}
@@ -310,6 +315,14 @@ async function setRem(k){const on=!S.rem.on[k];if(on&&'Notification' in window&&
  S.rem.on[k]=on;save();render();if(on&&!('Notification' in window&&Notification.permission=='granted'))toast('Разрешите уведомления для приложения в настройках iPhone')}
 function permTxt(){const ios=/iPhone|iPad/.test(navigator.userAgent),sa=navigator.standalone||matchMedia('(display-mode:standalone)').matches;if(ios&&!sa)return 'На iPhone системные уведомления работают только после установки: «Поделиться» → «На экран Домой», затем откройте приложение с иконки.';return !('Notification' in window)?'Этот браузер не поддерживает системные уведомления — напоминание появится внутри приложения.':{granted:'Системные уведомления разрешены.',denied:'Системные уведомления запрещены в браузере — напоминание появится внутри приложения.',default:'Разрешение на уведомления ещё не выдано — браузер спросит при запуске теста.'}[Notification.permission]}
 function b64u(s){return Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0))}
+async function testServerPush(){const say=t=>{const o=$('#pt');if(o)o.textContent=t};
+ try{if(!hasAPI())return say('Адрес сервера не задан.');
+  if(!('serviceWorker' in navigator)||!('PushManager' in window)||!('Notification' in window))return say('Здесь пуши не поддерживаются. На iPhone откройте приложение с иконки на экране «Домой».');
+  if(Notification.permission!='granted'){const p=await Notification.requestPermission();if(p!='granted')return say('Уведомления запрещены. Разрешите их в настройках iPhone.')}
+  say('Проверяю…');const reg=await navigator.serviceWorker.ready;let sub=await reg.pushManager.getSubscription();if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64u(VAPID)});
+  const r=JSON.parse(await callAPI({mode:'test',sub:sub.toJSON()}));
+  say((r.status==201||r.status==200)?'Сервер отправил пуш (код '+r.status+'). Он придёт за несколько секунд.':'Пуш не отправлен, код '+r.status+(r.detail?': '+r.detail:'')+(r.key?'':' Нет секрета VAPID_KEY в Worker.')+(r.kv?'':' Нет привязки KV (SUBS).'))}
+ catch(e){say(e&&e.code=='rl'?'Слишком часто, подождите минуту.':'Ошибка связи с сервером: Worker не обновлён или недоступен.')}}
 function schedSync(){clearTimeout(syncT);syncT=setTimeout(syncPush,800)}
 async function syncPush(){if(!hasAPI()||!('serviceWorker' in navigator)||!('PushManager' in window)||!('Notification' in window)||Notification.permission!='granted')return;
  const cfg={on:S.rem.on,t:S.rem.t,wc:S.rem.wc||{from:'09:00',to:'21:00',ev:2}},any=Object.values(S.rem.on).some(Boolean),tz=-new Date().getTimezoneOffset(),str=JSON.stringify([cfg,any,tz]);if(str==lastSync)return;
@@ -318,7 +331,7 @@ async function syncPush(){if(!hasAPI()||!('serviceWorker' in navigator)||!('Push
   if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64u(VAPID)});
   await callAPI({mode:'sync',sub:sub.toJSON(),tz,cfg});PUSH=true;lastSync=str}catch(e){}}
 async function notify(t,m,tag){try{if('Notification' in window&&Notification.permission=='granted'){const r=SW||(navigator.serviceWorker&&await navigator.serviceWorker.getRegistration());if(r)r.showNotification(t,{body:m,icon:'icon-192.png',badge:'icon-192.png',tag:tag||'kalorii'});else new Notification(t,{body:m})}}catch(e){}}
-setInterval(()=>{if(PUSH)return;const hm=new Date().toTimeString().slice(0,5),d=today(),mn=x=>+x.slice(0,2)*60+ +x.slice(3,5);REM.forEach(([k,n,t,m])=>{if(S.rem.on[k]&&hm==(S.rem.t[k]||t)&&S.rem.fired[k]!=d){S.rem.fired[k]=d;save();notify(n,m,k)}});
+setInterval(()=>{const hm=new Date().toTimeString().slice(0,5),d=today(),mn=x=>+x.slice(0,2)*60+ +x.slice(3,5);REM.forEach(([k,n,t,m])=>{if(S.rem.on[k]&&hm==(S.rem.t[k]||t)&&S.rem.fired[k]!=d){S.rem.fired[k]=d;save();notify(n,m,k)}});
  const w=S.rem.wc||{from:'09:00',to:'21:00',ev:2};if(S.rem.on.w&&hm>=w.from&&hm<=w.to&&(mn(hm)-mn(w.from))%(w.ev*60)==0&&S.rem.fired.w!=d+hm){S.rem.fired.w=d+hm;save();notify('Вода','Выпейте стакан воды','w')}},20000);
 (()=>{let y0=0,dy=0,on=false,t0=0,sh=null;
  document.addEventListener('pointerdown',e=>{const g=e.target.closest('.grab,.adh');if(!g||e.target.closest('button,input,label'))return;sh=g.closest('.sh');if(!sh)return;on=true;y0=e.clientY;dy=0;t0=Date.now();sh.style.animation='none';sh.style.transition='none'},{passive:true});
@@ -338,31 +351,42 @@ function kbHtml(){const ky=c=>`<button class="k l" data-k="${esc(c)}">${esc(c)}<
  return ['ru','en','num','sym'].map(lay).join('')+`<div class="ly" data-l="emo" hidden><div class="eg">${EMO.map(e=>`<button class="k e" data-k="${e}">${e}</button>`).join('')}</div><div class="kr">${b('abc',abc,'w14')}<button class="k w44" data-k=" "></button>${b('bs',BS,'w22')}</div></div>`}
 let LS='';
 function showLy(){const K=$('#vk');if(!K)return;const st=KL+'|'+(SH>0)+'|'+(SH==2)+'|'+LL;if(st==LS)return;LS=st;K.querySelectorAll('.ly').forEach(x=>x.hidden=x.dataset.l!=KL);K.classList.toggle('up',SH>0);K.classList.toggle('caps',SH==2);K.querySelectorAll('.abc').forEach(x=>x.textContent=LL=='ru'?'АБВ':'ABC')}
+let CP=0;
+function kbRender(el,a){a=a||Array.from(el.textContent);CP=Math.min(CP,a.length);if(!a.length){el.innerHTML='';el.classList.remove('hc');return}el.classList.add('hc');el.innerHTML=esc(a.slice(0,CP).join(''))+'<span class="cr"></span>'+esc(a.slice(CP).join(''));if(CP>=a.length)el.scrollTop=el.scrollHeight}
+function cpFrom(el,r){let idx=0;const len=n=>Array.from(n.textContent).length,walk=n=>{if(n===r.startContainer){if(n.nodeType==3)idx+=Array.from(n.textContent.slice(0,r.startOffset)).length;else for(let i=0;i<r.startOffset&&i<n.childNodes.length;i++)idx+=len(n.childNodes[i]);return true}if(n.nodeType==3){idx+=len(n);return false}for(const c of n.childNodes)if(walk(c))return true;return false};return walk(el)?idx:null}
+function posFromPoint(el,x,y){try{const r=document.caretRangeFromPoint?document.caretRangeFromPoint(x,y):null;if(!r||!el.contains(r.startContainer))return null;return cpFrom(el,r)}catch(e){return null}}
 function press(k){const el=KT;if(!el)return;const lt=KL=='ru'||KL=='en';
  if(k=='shift'){const n=Date.now();SH=(n-KS<350)?2:(SH?0:1);KS=n;return showLy()}
  if(k=='num'||k=='sym'||k=='emo'){KL=k;return showLy()}
  if(k=='abc'){KL=LL;return showLy()}
  if(k=='lang'){LL=KL=(KL=='ru'?'en':'ru');return showLy()}
- if(k=='bs')el.textContent=Array.from(el.textContent).slice(0,-1).join('');
- else{let c=k=='ret'?'\n':k;if(lt&&SH>0)c=c.toUpperCase();el.textContent+=c;if(lt&&SH==1)SH=0}
- gr(el);el.scrollTop=el.scrollHeight;kbSync()}
-function kbSync(){if(!CK||!KT)return;const t=KT.textContent;if(SH!=2&&(KL=='ru'||KL=='en'))SH=(!t||/[.!?]\s$/.test(t)||/\n$/.test(t))?1:0;showLy()}
+ const a=Array.from(el.textContent);CP=Math.min(CP,a.length);
+ if(k=='bs'){if(CP>0){a.splice(CP-1,1);CP--}}
+ else{if(k==' '&&(KL=='num'||KL=='sym'))KL=LL;let c=k=='ret'?'\n':k;if(lt&&SH>0)c=c.toUpperCase();const ca=Array.from(c);a.splice(CP,0,...ca);CP+=ca.length;if(lt&&SH==1)SH=0}
+ kbRender(el,a);gr(el);kbSync()}
+function kbSync(reset){if(!CK||!KT)return;if(reset){CP=Array.from(KT.textContent).length;kbRender(KT)}const t=Array.from(KT.textContent).slice(0,CP).join('');if(SH!=2&&(KL=='ru'||KL=='en'))SH=(!t||/[.!?]\s$/.test(t)||/\n$/.test(t))?1:0;showLy()}
 function applyKb(){document.documentElement.style.setProperty('--kb',CKh+'px');document.body.classList.add('kbd');fixVV();if(V=='coach')toBot()}
-function kbOpen(el){if(!OWNKB())return;KT=el;document.querySelectorAll('.ce').forEach(e=>e.classList.toggle('act',e==el));
+function kbOpen(el,ev){if(!OWNKB())return;const p0=ev?posFromPoint(el,ev.clientX,ev.clientY):null;KT=el;document.querySelectorAll('.ce').forEach(e=>e.classList.toggle('act',e==el));
  if(CK&&!document.getElementById('vk'))CK=false;
- if(CK){kbSync();return}
+ if(CK){if(p0!=null){CP=p0;kbRender(el)}kbSync();return}
  const host=el.closest('.sh')||el.closest('.comp');if(!host)return;
- CK=true;KL=LL;SH=1;LS='';const K=document.createElement('div');K.id='vk';K.className='vk';K.innerHTML=kbHtml();host.append(K);
- K.addEventListener('pointerdown',e=>{e.preventDefault();const b=e.target.closest('[data-k]');if(!b)return;b.classList.add('dn');const k=b.dataset.k;if(b.classList.contains('l'))showPop(b,K);
-  if(k=='bs'){press('bs');clearTimeout(KHT);KHT=setTimeout(function r(){press('bs');KHT=setTimeout(r,60)},420);return}
-  if(KL=='ru'&&ALT[k]){KP={k,t:setTimeout(()=>{KP.l=1;press(ALT[k])},420)};return}
+ CK=true;KL=LL;SH=1;LS='';CP=p0!=null?p0:Array.from(el.textContent).length;const K=document.createElement('div');K.id='vk';K.className='vk';K.innerHTML=kbHtml();host.append(K);
+ const PT={};
+ K.addEventListener('pointerdown',e=>{e.preventDefault();const b=e.target.closest('[data-k]');if(!b)return;const k=b.dataset.k,o={b,k,x:e.clientX};PT[e.pointerId]=o;b.classList.add('dn');
+  if(b.classList.contains('l'))o.pop=showPop(b);
+  if(k=='bs'){press('bs');o.t=setTimeout(function r(){press('bs');o.t=setTimeout(r,60)},420);return}
+  if(k==' '){o.t=setTimeout(()=>{o.trk=1;K.classList.add('trk')},300);return}
+  if(KL=='ru'&&ALT[k]){o.t=setTimeout(()=>{o.l=1;press(ALT[k])},420);return}
   press(k)});
- const up=()=>{hidePop();clearTimeout(KHT);K.querySelectorAll('.dn').forEach(x=>x.classList.remove('dn'));if(KP){clearTimeout(KP.t);const p=KP;KP=0;if(!p.l)press(p.k)}};
+ K.addEventListener('pointermove',e=>{const o=PT[e.pointerId];if(!o||!o.trk||!KT)return;const st=Math.trunc((e.clientX-o.x)/12);if(st){o.x+=st*12;CP=Math.max(0,Math.min(Array.from(KT.textContent).length,CP+st));kbRender(KT)}});
+ const up=e=>{const o=PT[e.pointerId];if(!o)return;delete PT[e.pointerId];clearTimeout(o.t);o.b.classList.remove('dn');if(o.pop)o.pop.remove();if(!Object.keys(PT).length)hidePop();
+  if(o.k==' '){K.classList.remove('trk');if(!o.trk&&e.type=='pointerup')press(' ')}
+  else if(KL=='ru'&&ALT[o.k]&&!o.l&&e.type=='pointerup')press(o.k)};
  K.addEventListener('pointerup',up);K.addEventListener('pointercancel',up);
  if(host.classList.contains('sh'))host.closest('.ov').classList.add('kb');else document.body.classList.add('kbd');
- kbSync();setTimeout(()=>{const m=document.getElementById('am');if(m)m.scrollTop=m.scrollHeight;if(V=='coach')toBot()},30)}
-function showPop(b){hidePop();const r=b.getBoundingClientRect(),c=document.createElement('div'),up=SH>0&&(KL=='ru'||KL=='en');c.className='kp';c.id='kpop';c.textContent=up?b.textContent.toUpperCase():b.textContent;const w=Math.round(r.width*1.45),h=Math.round(r.height*1.25);let x=r.left-(w-r.width)/2;x=Math.max(2,Math.min(innerWidth-w-2,x));c.style.cssText=`width:${w}px;height:${h}px;left:${x}px;top:${r.top-h+1}px`;document.body.append(c)}
-function hidePop(){const c=document.getElementById('kpop');if(c)c.remove()}
+ kbRender(el);kbSync();setTimeout(()=>{const m=document.getElementById('am');if(m)m.scrollTop=m.scrollHeight;if(V=='coach')toBot()},30)}
+function showPop(b){const r=b.getBoundingClientRect(),c=document.createElement('div'),up=SH>0&&(KL=='ru'||KL=='en');c.className='kp';c.id='kpop';c.textContent=up?b.textContent.toUpperCase():b.textContent;const w=Math.round(r.width*1.45),h=Math.round(r.height*1.25);let x=r.left-(w-r.width)/2;x=Math.max(2,Math.min(innerWidth-w-2,x));c.style.cssText=`width:${w}px;height:${h}px;left:${x}px;top:${r.top-h+1}px`;document.body.append(c);return c}
+function hidePop(){document.querySelectorAll('.kp').forEach(c=>c.remove())}
 function attachMenu(){kbClose();const i=document.getElementById('fg');if(i)i.click()}
 function asClose(){const d=document.getElementById('asw');if(d)d.remove()}
 function asPick(id){const i=document.getElementById(id);asClose();if(i)i.click()}
