@@ -52,7 +52,7 @@ test('the whole request has one 12-ingredient budget, not one budget per dish', 
 
 test('provider failure prevents a partially computed set of changes', async () => {
   let calls = 0;
-  await assert.rejects(processFoodActions({ actions: [{ op: 'add', grams: 100 }, { op: 'add', grams: 100 }] }, {}, {
+  await assert.rejects(processFoodActions({ actions: [{ op: 'add', query: 'rice cooked', grams: 100 }, { op: 'add', query: 'rice cooked', grams: 100 }] }, {}, {
     createContext: context(async input => { if (++calls === 2) throw new NutritionError('lookup_unavailable', 'source unavailable'); return { ...input, kcal: 110, nutrition: snapshot }; })
   }), e => e.code === 'lookup_unavailable');
   assert.equal(calls, 2);
@@ -62,6 +62,18 @@ test('non-food coach actions do not fetch any food source', async () => {
   const input = { actions: [{ type: 'add_water', ml: 250 }], reply: 'Добавлена вода' };
   const result = await processFoodActions(input, {}, { mode: 'chat', createContext: context(() => { throw new Error('must not fetch'); }) });
   assert.deepEqual(result, input);
+});
+
+test('a missing English ingredient query is repaired without changing recipe quantities', async () => {
+  let received;
+  const result = await processFoodActions({ actions: [{ op: 'add', name: 'Салат', grams: 150, yieldGrams: 300, ingredients: [{ name: 'Помидоры сырые', grams: 200, state: 'raw' }] }] }, { GEMINI_KEY: 'test' }, {
+    fetchImpl: async () => modelReply({ items: [{ index: 0, query: 'tomato raw' }] }),
+    createContext: context(async a => { received = a; return { ...a, kcal: 12, nutrition: snapshot }; })
+  });
+  assert.equal(received.ingredients[0].query, 'tomato raw');
+  assert.equal(received.ingredients[0].grams, 200);
+  assert.equal(received.yieldGrams, 300);
+  assert.equal(result.actions[0].grams, 150);
 });
 
 test('candidate selector sends only food metadata, with no profile/diary to external sources', async () => {
@@ -89,10 +101,10 @@ test('conflicting action discriminators cannot bypass source lookup with forged 
 
 test('diary and coach action types are canonical regardless of model spelling', async () => {
   const factory = context(async a => ({ ...a, kcal: 110, nutrition: snapshot }));
-  const coach = await processFoodActions({ actions: [{ op: 'add', name: 'Рис', grams: 100 }] }, {}, { mode: 'chat', createContext: factory });
+  const coach = await processFoodActions({ actions: [{ op: 'add', name: 'Рис', query: 'rice cooked', grams: 100 }] }, {}, { mode: 'chat', createContext: factory });
   assert.equal(coach.actions[0].type, 'add_food');
   assert.equal(coach.actions[0].op, undefined);
-  const diary = await processFoodActions({ actions: [{ type: 'add_food', name: 'Рис', grams: 100 }] }, {}, { createContext: factory });
+  const diary = await processFoodActions({ actions: [{ type: 'add_food', name: 'Рис', query: 'rice cooked', grams: 100 }] }, {}, { createContext: factory });
   assert.equal(diary.actions[0].op, 'add');
   assert.equal(diary.actions[0].type, undefined);
 });
