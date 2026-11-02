@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check index.js",
+    "check": "node --check index.js && node --check nutrition.js && node --check food-pipeline.js",
+    "test": "node --test nutrition.test.js food-pipeline.test.js",
     "dev": "wrangler dev --config wrangler.jsonc",
     "deploy": "wrangler deploy --config wrangler.jsonc",
     "dry-run": "wrangler deploy --config wrangler.jsonc --dry-run --outdir dist"
