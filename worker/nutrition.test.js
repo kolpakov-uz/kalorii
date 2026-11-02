@@ -21,6 +21,17 @@ test('new queries fetch fresh food page, past result is unchanged',async()=>{
 test('same request repeated foods also fetch fresh page',async()=>{
  let calls=0;const context=createNutritionContext({},settings([food('rice','Rice, cooked')],{fetchImpl:async()=>{calls++;return new Response(html(food('rice','Rice, cooked')));}}));await context.resolve(action());await context.resolve(action());assert.equal(calls,2);
 });
+test('real catalogue matches tomatoes, potatoes and cucumbers to singular names',async()=>{
+ const expectations=[['tomatoes','Tomato, unspecified, raw'],['potatoes','Potatoes, storage, raw'],['cucumbers','Cucumber, Norwegian, raw']];
+ for(const [query,label] of expectations){
+  let chosen;
+  await assert.rejects(resolveFood(action({name:query,query,state:'raw',grams:100}),{},{selectCandidate:async candidates=>{chosen=candidates.find(c=>c.label===label);assert.ok(chosen,`${query} must include ${label}`);return chosen.id;},fetchImpl:async()=>new Response('no source values')}),rejectCode('no_match'));
+  assert.ok(chosen);
+ }
+});
+test('recipe names the failing ingredient without exposing raw provider errors',async()=>{
+ await assert.rejects(resolveFood(action({yieldGrams:300,ingredients:[{name:'Томат\n<script>',query:'tomatoes',state:'raw',grams:200}]}),{},settings([])),error=>{assert.equal(error.code,'no_match');assert.match(error.message,/^Томат script: /);assert.doesNotMatch(error.message,/[<>\n]/);return true;});
+});
 test('selector cannot override raw/cooked or invent ID; sees no calories',async()=>{
  const foods=[food('raw','Rice, raw',360),food('ready','Rice, cooked',130)];
  await assert.rejects(resolveFood(action(),{},settings(foods,{selectCandidate:async candidates=>{assert.deepEqual(candidates.map(x=>x.id),['mat:ready']);assert.equal(candidates[0].per100,undefined);return'mat:raw';}})),rejectCode('no_match'));

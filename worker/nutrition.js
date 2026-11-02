@@ -13,7 +13,8 @@ const missing = () => problem('no_match', 'Не нашёл подходящий 
 const finite = (value) => (typeof value === 'number' || typeof value === 'string' && value.trim() !== '') && Number.isFinite(Number(value)) ? Number(value) : null;
 const clean = (value, length = 160) => String(value || '').replace(/[\u0000-\u001f]/g, ' ').slice(0, length);
 const norm = (value) => clean(value).normalize('NFKD').toLowerCase().replace(/[\u0300-\u036f]/g, '').replace(/ё/g, 'е').replace(/[^\p{L}\p{N}%.,]+/gu, ' ').trim();
-const words = (value) => norm(value).replace(/\d+(?:[.,]\d+)?\s*%/g, ' ').split(/[\s,.;]+/).map(x => x.length > 3 ? x.replace(/s$/, '') : x).filter(x => x.length > 1);
+const singular = (word) => /^(tomatoes|potatoes|mangoes|avocadoes)$/.test(word) ? word.slice(0, -2) : word.length > 3 ? word.replace(/s$/, '') : word;
+const words = (value) => norm(value).replace(/\d+(?:[.,]\d+)?\s*%/g, ' ').split(/[\s,.;]+/).map(singular).filter(x => x.length > 1);
 const OMIT = new Set(['raw', 'cooked', 'ready', 'boiled', 'fresh', 'food', 'plain', 'unsalted', 'salted', 'with', 'without', 'and', 'the', 'per', 'gram', 'fat', 'percent']);
 const meaningful = (value) => words(value).filter(x => !OMIT.has(x));
 const stateOf = (label) => /\b(cooked|boiled|fried|baked|roasted|grilled|steamed|stewed)\b/i.test(label) ? 'cooked' : /\b(raw|uncooked|dry|dried)\b/i.test(label) ? 'raw' : 'unspecified';
@@ -72,27 +73,32 @@ function matNutrients(html, record) {
   return per100;
 }
 
-function compatible(candidate, action, { exactBarcode = false } = {}) {
-  if (candidate.unit && candidate.unit !== (action.unit || 'g')) return false;
-  const state = action.state || stateOf(action.query || action.name);
+function matching(action) {
+  return { unit: action.unit || 'g', state: action.state || stateOf(action.query || action.name), fatPercent: finite(action.fatPercent), brand: action.brand ? meaningful(action.brand) : null, query: meaningful((action.query || '') + ' ' + (action.name || '')), rankQuery: meaningful(action.query || action.name) };
+}
+const termsOf = candidate => candidate.terms || new Set(words(candidate.label + ' ' + (candidate.keywords || '')));
+
+function compatible(candidate, action, { exactBarcode = false, match = matching(action) } = {}) {
+  if (candidate.unit && candidate.unit !== match.unit) return false;
+  const state = match.state;
   if ((state === 'raw' && candidate.state === 'cooked') || (state === 'cooked' && candidate.state === 'raw')) return false;
-  const requestedFat = finite(action.fatPercent);
+  const requestedFat = match.fatPercent;
   if (requestedFat !== null && candidate.fatPercent !== null && candidate.fatPercent !== undefined && Math.abs(requestedFat - candidate.fatPercent) > 0.15) return false;
-  if (action.brand) {
-    const brand = meaningful(action.brand), actual = words(candidate.brand);
-    if (!brand.length || !brand.every(w => actual.includes(w))) return false;
+  if (match.brand) {
+    const actual = candidate.brandTerms || new Set(words(candidate.brand));
+    if (!match.brand.length || !match.brand.every(w => actual.has(w))) return false;
   }
   if (!exactBarcode) {
-    const query = meaningful((action.query || '') + ' ' + (action.name || '')), label = words(candidate.label + ' ' + (candidate.keywords || ''));
-    if (!query.length || !query.some(w => label.includes(w))) return false;
+    const label = termsOf(candidate);
+    if (!match.query.length || !match.query.some(w => label.has(w))) return false;
   }
   return true;
 }
 
-function rank(candidate, action) {
-  const query = meaningful(action.query || action.name), label = words(candidate.label + ' ' + (candidate.keywords || ''));
-  const overlap = query.filter(x => label.includes(x)).length / Math.max(1, query.length);
-  const state = action.state || stateOf(action.query || action.name);
+function rank(candidate, match) {
+  const query = match.rankQuery, label = termsOf(candidate);
+  const overlap = query.filter(x => label.has(x)).length / Math.max(1, query.length);
+  const state = match.state;
   return overlap * 10 + (state !== 'unspecified' && candidate.state === state ? 2 : 0) + (candidate.countryTags || []).includes('en:uzbekistan') * 0.2;
 }
 
@@ -101,7 +107,8 @@ function publicCandidate(candidate) {
 }
 
 async function choose(candidates, action, selectCandidate) {
-  candidates = candidates.filter(c => compatible(c, action)).sort((a, b) => rank(b, action) - rank(a, action)).slice(0, 12);
+  const match = matching(action);
+  candidates = candidates.filter(c => compatible(c, action, { match })).map(candidate => ({ candidate, score: rank(candidate, match) })).sort((a, b) => b.score - a.score).slice(0, 12).map(item => item.candidate);
   if (!candidates.length) throw missing();
   if (selectCandidate) {
     const id = await selectCandidate(candidates.map(publicCandidate), action);
@@ -110,8 +117,8 @@ async function choose(candidates, action, selectCandidate) {
     return selected;
   }
   // Without the model's semantic check, accept only an unambiguous full lexical match.
-  const query = meaningful(action.query || action.name);
-  const full = candidates.filter(c => query.every(w => words(c.label + ' ' + (c.keywords || '')).includes(w)));
+  const query = match.rankQuery;
+  const full = candidates.filter(c => query.every(w => termsOf(c).has(w)));
   if (full.length !== 1) throw problem('needs_details', 'Есть несколько вариантов продукта. Уточните состав, жирность и способ приготовления.');
   return full[0];
 }
@@ -120,7 +127,7 @@ function offRecord(product) {
   if (!product || !/^\d{8,14}$/.test(String(product.code || product._id || ''))) return null;
   const label = clean(product.product_name_ru || product.product_name_en || product.product_name || product.generic_name);
   if (!label) return null;
-  return { id: `off:${product.code || product._id}`, provider: 'OpenFoodFacts', label, brand: clean(product.brands), state: stateOf(label), unit: null, fatPercent: explicitFat(label), countryTags: Array.isArray(product.countries_tags) ? product.countries_tags.slice(0, 30) : [], code: String(product.code || product._id), product };
+  return { id: `off:${product.code || product._id}`, provider: 'OpenFoodFacts', label, brand: clean(product.brands), terms: new Set(words(label)), brandTerms: new Set(words(product.brands)), state: stateOf(label), unit: null, fatPercent: explicitFat(label), countryTags: Array.isArray(product.countries_tags) ? product.countries_tags.slice(0, 30) : [], code: String(product.code || product._id), product };
 }
 
 function offNutrients(product, action) {
@@ -212,8 +219,7 @@ export function createNutritionContext(env = {}, options = {}) {
       return enrich(action, per100, [sourceFor(record)], 'database', options);
     }
     if ((action.unit || 'g') !== 'g') throw problem('needs_details', 'Для этого продукта справочник даёт состав на 100 г. Укажите массу или конкретную марку напитка с этикеткой на 100 мл.');
-    const tokens = meaningful((action.query || '') + ' ' + (action.name || ''));
-    const record = await choose(index.filter(c => tokens.some(t => c.terms.has(t))), action, options.selectCandidate);
+    const record = await choose(index, action, options.selectCandidate);
     const html = await readContent(record.sourceUrl, fetchImpl, {}, true);
     const per100 = matNutrients(html, record);
     if (finite(action.fatPercent) !== null && record.fatPercent === null && Math.abs(Number(action.fatPercent) - per100.fat) > 0.5) throw missing();
@@ -228,7 +234,12 @@ export function createNutritionContext(env = {}, options = {}) {
     const totals = { kcal: 0, protein: 0, fat: 0, carbs: 0 }, sources = new Map(), ingredients = [];
     for (const ingredient of action.ingredients) {
       if ((ingredient.unit || 'g') !== 'g') throw problem('needs_details', 'Для расчёта рецепта укажите массу каждого ингредиента в граммах.');
-      const resolved = await single({ ...ingredient, unit: 'g' });
+      let resolved;
+      try { resolved = await single({ ...ingredient, unit: 'g' }); }
+      catch (error) {
+        if (error instanceof NutritionError) throw problem(error.code, `${clean(ingredient.name || ingredient.query || 'Ингредиент', 80).replace(/[<>]/g, '')}: ${error.message}`);
+        throw error;
+      }
       for (const key of KEYS) totals[key] += resolved[key];
       for (const source of resolved.nutrition.sources) sources.set(source.id, source);
       ingredients.push({ name: clean(ingredient.name), grams: resolved.grams, state: ingredient.state || 'unspecified', per100: resolved.nutrition.per100, sourceIds: resolved.nutrition.sources.map(s => s.id) });
