@@ -1,0 +1,40 @@
+{
+    "name":  "kalorii-ai",
+    "main":  "index.js",
+    "workers_dev":  true,
+    "preview_urls":  false,
+    "compatibility_date":  "2026-10-01",
+    "triggers":  {
+                     "crons":  [
+                                   "*/1 * * * *"
+                               ]
+                 },
+    "observability":  {
+                          "enabled":  false,
+                          "head_sampling_rate":  1,
+                          "redact_query_string":  false,
+                          "logs":  {
+                                       "enabled":  true,
+                                       "head_sampling_rate":  1,
+                                       "persist":  true,
+                                       "invocation_logs":  true
+                                   },
+                          "traces":  {
+                                         "enabled":  false,
+                                         "persist":  true,
+                                         "head_sampling_rate":  1
+                                     }
+                      },
+    "vars":  {
+                 "MODEL":  "gemini-3.5-flash-lite"
+             },
+    "kv_namespaces":  [
+                          {
+                              "id":  "ee12631404334244912a6f07da61c0eb",
+                              "binding":  "SUBS"
+                          }
+                      ],
+    "account_id":  "cae4be1f2fa276b2ae53e3f648f95f49",
+    "keep_vars":  true,
+    "send_metrics":  false
+}

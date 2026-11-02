@@ -1,0 +1,14 @@
+{
+  "name": "kalorii-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check index.js",
+    "dev": "wrangler dev --config wrangler.jsonc",
+    "deploy": "wrangler deploy --config wrangler.jsonc",
+    "dry-run": "wrangler deploy --config wrangler.jsonc --dry-run --outdir dist"
+  },
+  "devDependencies": {
+    "wrangler": "4.156.2"
+  }
+}
