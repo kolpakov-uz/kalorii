@@ -14,6 +14,14 @@ const rejectCode=code=>error=>error instanceof NutritionError&&error.code===code
 test('catalogue contains search metadata only, no nutritional answers',()=>{
  assert.ok(FOOD_INDEX.length>2000);for(const row of FOOD_INDEX){assert.equal(row.length,4);for(const field of row)assert.equal(typeof field,'string');assert.match(row[2],/^\/en\/[a-z0-9-]+\/$/);}
 });
+
+test('abstention still accepts one exact raw ingredient with only a regional qualifier',async()=>{
+ const cucumber=food('cucumber','Cucumber, Norwegian, raw');
+ const result=await resolveFood(action({name:'Огурцы',query:'cucumber raw',state:'raw'}),{},settings([cucumber],{selectCandidate:async()=>null}));
+ assert.equal(result.nutrition.sources[0].id,'mat:cucumber');
+ await assert.rejects(resolveFood(action({query:'cucumber raw',state:'raw'}),{},settings([food('salad','Cucumber salad, raw')],{selectCandidate:async()=>null})),rejectCode('no_match'));
+ await assert.rejects(resolveFood(action({query:'rice cooked',state:'cooked'}),{},settings([food('basmati','Rice, Basmati, cooked')],{selectCandidate:async()=>null})),rejectCode('no_match'));
+});
 test('new queries fetch fresh food page, past result is unchanged',async()=>{
  let calls=0;const options=settings([food('rice','Rice, cooked')],{fetchImpl:async(url,options)=>{assert.equal(url,'https://www.matvaretabellen.no/en/rice/');assert.equal(options.cache,'no-store');return new Response(html(food('rice','Rice, cooked',++calls===1?130:140)));}});
  const oldEntry=await resolveFood(action(),{},options),newEntry=await resolveFood(action(),{},options);assert.equal(calls,2);assert.equal(oldEntry.kcal,325);assert.equal(newEntry.kcal,350);assert.equal(oldEntry.nutrition.per100.kcal,130);

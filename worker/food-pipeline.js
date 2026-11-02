@@ -42,7 +42,11 @@ export function candidateSelector(env, fetchImpl = fetch) {
       contents: [{ role: 'user', parts: [{ text: JSON.stringify({ food: { name: action.name, query: action.query, state: action.state, brand: action.brand, fatPercent: action.fatPercent, unit: action.unit || 'g' }, candidates }) }] }],
       generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 256, temperature: 0 }
     }, fetchImpl);
-    return typeof choice.id === 'string' ? choice.id : null;
+    if (typeof choice.id !== 'string') return null;
+    const id = choice.id.trim();
+    if (candidates.some(candidate => candidate.id === id)) return id;
+    const exactSuffix = candidates.filter(candidate => candidate.id.slice(candidate.id.indexOf(':') + 1) === id);
+    return exactSuffix.length === 1 ? exactSuffix[0].id : id;
   };
 }
 

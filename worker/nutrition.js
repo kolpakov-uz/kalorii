@@ -9,7 +9,7 @@ export class NutritionError extends Error {
   constructor(code, message) { super(message); this.name = 'NutritionError'; this.code = code; }
 }
 const problem = (code, message) => new NutritionError(code, message);
-const missing = () => problem('no_match', 'Не нашёл подходящий продукт с полными КБЖУ. Уточните название, способ приготовления или марку; можно прислать фото этикетки.');
+const missing = (reason = 'not_found') => Object.assign(problem('no_match', 'Не нашёл подходящий продукт с полными КБЖУ. Уточните название, способ приготовления или марку; можно прислать фото этикетки.'), { reason });
 const finite = (value) => (typeof value === 'number' || typeof value === 'string' && value.trim() !== '') && Number.isFinite(Number(value)) ? Number(value) : null;
 const clean = (value, length = 160) => String(value || '').replace(/[\u0000-\u001f]/g, ' ').slice(0, length);
 const norm = (value) => clean(value).normalize('NFKD').toLowerCase().replace(/[\u0300-\u036f]/g, '').replace(/ё/g, 'е').replace(/[^\p{L}\p{N}%.,]+/gu, ' ').trim();
@@ -56,7 +56,7 @@ function matRecord([foodId, foodName, uri, keywords = '']) {
 const MAT_RECORDS = FOOD_INDEX.map(matRecord).filter(Boolean);
 
 function matNutrients(html, record) {
-  if (typeof html !== 'string' || !html.includes(`data-food-id="${record.foodId}"`) || !/class="[^"]*js-portion-label[^"]*"[^>]*>\s*100\s*g\s*</i.test(html)) throw missing();
+  if (typeof html !== 'string' || !html.includes(`data-food-id="${record.foodId}"`) || !/class="[^"]*js-portion-label[^"]*"[^>]*>\s*100\s*g\s*</i.test(html)) throw missing('source_page_schema');
   const calorieTag = html.match(/<span\b(?=[^>]*class="[^"]*\bmvt-kcal\b)[^>]*>/i)?.[0];
   const kcal = finite(calorieTag?.match(/\bdata-value="([^"]+)"/)?.[1]);
   const values = { kcal, protein: null, fat: null, carbs: null };
@@ -69,7 +69,7 @@ function matNutrients(html, record) {
     if (amount !== undefined && /class="[^"]*mvt-sym[^"]*"[^>]*>\s*g\s*</i.test(row)) values[names[slug.toLowerCase()]] = finite(amount);
   }
   const per100 = checkedNutrients(values);
-  if (!per100) throw missing();
+  if (!per100) throw missing('incomplete_nutrients');
   return per100;
 }
 
@@ -109,11 +109,24 @@ function publicCandidate(candidate) {
 async function choose(candidates, action, selectCandidate) {
   const match = matching(action);
   candidates = candidates.filter(c => compatible(c, action, { match })).map(candidate => ({ candidate, score: rank(candidate, match) })).sort((a, b) => b.score - a.score).slice(0, 12).map(item => item.candidate);
-  if (!candidates.length) throw missing();
+  if (!candidates.length) throw missing('no_candidates');
   if (selectCandidate) {
     const id = await selectCandidate(candidates.map(publicCandidate), action);
-    const selected = candidates.find(c => c.id === id);
-    if (!selected) throw missing();
+    let selected = candidates.find(c => c.id === id);
+    if (id === null && !action.brand && !action.barcode) {
+      // An ordinary raw ingredient may have only a regional qualifier in the table.
+      // Accept a unique exact identity; never turn a different dish/variety into a match.
+      const query = meaningful(action.query || action.name);
+      const state = action.state || stateOf(action.query || action.name);
+      const harmless = new Set(['norwegian', 'imported', 'unspecified', 'plain', 'raw', 'uncooked', 'cooked', 'boiled', 'fresh']);
+      const exact = candidates.filter(candidate => {
+        if (!query.length || !['raw', 'cooked'].includes(state) || candidate.state !== state) return false;
+        const label = words(candidate.label);
+        return query.every(word => label.includes(word)) && label.every(word => query.includes(word) || harmless.has(word));
+      });
+      if (exact.length === 1) selected = exact[0];
+    }
+    if (!selected) throw missing('selection_unresolved');
     return selected;
   }
   // Without the model's semantic check, accept only an unambiguous full lexical match.
@@ -222,7 +235,7 @@ export function createNutritionContext(env = {}, options = {}) {
     const record = await choose(index, action, options.selectCandidate);
     const html = await readContent(record.sourceUrl, fetchImpl, {}, true);
     const per100 = matNutrients(html, record);
-    if (finite(action.fatPercent) !== null && record.fatPercent === null && Math.abs(Number(action.fatPercent) - per100.fat) > 0.5) throw missing();
+    if (finite(action.fatPercent) !== null && record.fatPercent === null && Math.abs(Number(action.fatPercent) - per100.fat) > 0.5) throw missing('fat_mismatch');
     return enrich(action, per100, [sourceFor(record)], 'database', options);
   }
 
@@ -237,7 +250,7 @@ export function createNutritionContext(env = {}, options = {}) {
       let resolved;
       try { resolved = await single({ ...ingredient, unit: 'g' }); }
       catch (error) {
-        if (error instanceof NutritionError) throw problem(error.code, `${clean(ingredient.name || ingredient.query || 'Ингредиент', 80).replace(/[<>]/g, '')}: ${error.message}`);
+        if (error instanceof NutritionError) { error.message = `${clean(ingredient.name || ingredient.query || 'Ингредиент', 80).replace(/[<>]/g, '')}: ${error.message}`; throw error; }
         throw error;
       }
       for (const key of KEYS) totals[key] += resolved[key];

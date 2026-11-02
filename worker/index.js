@@ -69,7 +69,7 @@ export default{async fetch(req,env){
   const result=await processFoodActions(parsed,env,{entries,text,photo:b.mode=='photo',mode:b.mode});
   return j({text:JSON.stringify(result)});
  }catch(e){
-  if(e instanceof NutritionError)return j({error:e.code,message:e.message},['no_match','needs_details'].includes(e.code)?422:503);
+  if(e instanceof NutritionError)return j({error:e.code,message:e.message,...(e.reason?{reason:e.reason}:{})},['no_match','needs_details'].includes(e.code)?422:503);
   if(e instanceof AIError)return j({error:e.code,message:e.message},e.status);
   return j({error:'nutrition_unavailable',message:'Не удалось проверить пищевую ценность. Попробуйте позже.'},503);
  }
