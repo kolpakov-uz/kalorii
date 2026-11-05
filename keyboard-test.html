@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Калории — тест клавиатуры</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{--bg:#F2F5F1;--card:#fff;--ink:#17231D;--mut:#6B7D74;--line:#E1E8E3;--acc:#1E8E5A;--on:#fff;--view-height:100dvh;color-scheme:light}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0F1613;--card:#18221D;--ink:#E9F1EC;--mut:#8FA39A;--line:#26332D;--acc:#3DD08B;--on:#06150D;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0F1613;--card:#18221D;--ink:#E9F1EC;--mut:#8FA39A;--line:#26332D;--acc:#3DD08B;--on:#06150D;color-scheme:dark}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:500 15px/1.45 system-ui,-apple-system,sans-serif}button,textarea{font:inherit}button{cursor:pointer}button:focus-visible{outline:2px solid var(--acc);outline-offset:3px}[hidden]{display:none!important}
+main{height:var(--view-height);max-width:480px;margin:auto;display:flex;flex-direction:column;padding-top:max(env(safe-area-inset-top,0px),var(--tg-content-safe-area-inset-top,0px))}header{padding:20px 18px 12px;flex:none}h1{font-size:25px;line-height:1.2;margin:10px 0 6px;letter-spacing:-.03em}.tag{display:inline-block;border:1px solid var(--line);border-radius:30px;padding:5px 10px;color:var(--acc);font-size:12px;font-weight:700}p{margin:0;color:var(--mut);font-size:14px}.modes{display:flex;gap:6px;margin-top:16px}.modes button{flex:1;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--mut);padding:10px 6px;font-size:13px;font-weight:600}.modes button[aria-pressed="true"]{background:var(--acc);color:var(--on);border-color:var(--acc)}
+.messages{flex:1;min-height:0;overflow:auto;padding:8px 18px 16px;display:flex;flex-direction:column;gap:10px;overscroll-behavior:contain}.guide{margin:auto 0;padding:18px;border:1px solid var(--line);border-radius:20px;background:var(--card)}.guide strong{display:block;margin-bottom:8px}.guide p+p{margin-top:8px}.bubble{background:var(--acc);color:var(--on);padding:12px 15px;border-radius:18px 18px 4px 18px;max-width:90%;align-self:flex-end;overflow-wrap:anywhere;white-space:pre-wrap}
+footer{flex:none;padding:10px 16px max(12px,env(safe-area-inset-bottom,0px),var(--tg-content-safe-area-inset-bottom,0px));background:var(--bg);border-top:1px solid var(--line)}.composer{display:flex;align-items:flex-end;gap:8px}.entry{flex:1;min-width:0;min-height:46px;max-height:130px;margin:0;border:1px solid var(--line);border-radius:23px;padding:12px 15px;background:var(--card);color:var(--ink);font:400 16px/1.3 system-ui,-apple-system,sans-serif;resize:none;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;outline:none}.entry:focus{border-color:var(--acc)}.entry::placeholder{font-size:13px;color:var(--mut)}[contenteditable]:empty::before{content:attr(data-placeholder);color:var(--mut);font-size:13px;pointer-events:none}.send{flex:0 0 46px;height:46px;border:0;border-radius:50%;background:var(--acc);color:var(--on);display:grid;place-items:center}.send:disabled{opacity:.4}.bottom{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px}.bottom span{font-size:11px;color:var(--mut)}.hide{border:0;background:none;padding:4px 0;color:var(--acc);font-size:12px}
+@media(max-height:540px){header{padding-top:8px}h1{font-size:21px}.intro{display:none}.modes{margin-top:10px}.tag{padding:2px 8px}.guide{padding:12px}}
+</style>
+</head>
+<body>
+<main>
+ <header><span class="tag" id="environment">Проверка запуска…</span><h1>Клавиатура iPhone</h1><p class="intro">Проверяем удобный ввод для «Калорий».</p><div class="modes" role="group" aria-label="Вариант поля"><button type="button" data-mode="plain" aria-pressed="true">Обычное поле</button><button type="button" data-mode="editable" aria-pressed="false">Как в «Калориях»</button></div></header>
+ <section class="messages" aria-label="Тестовые сообщения"><div class="guide"><strong>Попробуй напечатать пару строк</strong><p>Проверь автокоррекцию, диктовку клавиатуры и панель со стрелками над ней. Затем сравни второй вариант поля.</p><p id="launch-help">Для проверки Telegram открой эту страницу кнопкой мини-приложения в боте.</p><p>Это тест: сообщения остаются только на этом экране и исчезнут после закрытия или перезагрузки.</p></div></section>
+ <footer><div class="composer"><textarea class="entry" id="plain" rows="1" aria-label="Тестовый текст" placeholder="Еда и вес…" autocorrect="on" autocapitalize="sentences" spellcheck="true"></textarea><div class="entry" id="editable" contenteditable="plaintext-only" role="textbox" aria-multiline="true" aria-label="Тестовый текст как в Калориях" data-placeholder="Еда и вес…" autocorrect="on" autocapitalize="sentences" spellcheck="true" hidden></div><button class="send" type="button" aria-label="Отправить тестовый текст" disabled><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5m-7 7 7-7 7 7"/></svg></button></div><div class="bottom"><span role="status" id="status">Системная клавиатура телефона</span><button class="hide" type="button">Скрыть клавиатуру</button></div></footer>
+</main>
+<script>
+const tg=window.Telegram?.WebApp,insideTelegram=!!tg?.initData;
+const plain=document.getElementById('plain'),editable=document.getElementById('editable'),send=document.querySelector('.send'),status=document.getElementById('status');
+let active=plain;
+const value=()=>active===plain?plain.value:editable.textContent;
+function paint(){send.disabled=!value().trim();plain.style.height='auto';plain.style.height=Math.min(130,Math.max(46,plain.scrollHeight+2))+'px'}
+function viewport(){document.documentElement.style.setProperty('--view-height',(window.visualViewport?.height||window.innerHeight)+'px')}
+function theme(){if(!insideTelegram)return;const dark=tg.colorScheme==='dark';document.documentElement.dataset.theme=dark?'dark':'light';if(tg.isVersionAtLeast('6.1')){tg.setHeaderColor(dark?'#0F1613':'#F2F5F1');tg.setBackgroundColor(dark?'#0F1613':'#F2F5F1')}}
+document.getElementById('environment').textContent=insideTelegram?'Открыто как Telegram Mini App':'Открыто в браузере';
+if(insideTelegram){document.getElementById('launch-help').textContent='Страница запущена внутри Telegram. Проверь, осталась ли лишняя панель над клавиатурой.';tg.ready();tg.expand();theme();tg.onEvent('themeChanged',theme)}
+document.querySelectorAll('[data-mode]').forEach(button=>button.addEventListener('click',()=>{const draft=value();active.blur();active=button.dataset.mode==='plain'?plain:editable;plain.hidden=active!==plain;editable.hidden=active!==editable;if(active===plain)plain.value=draft;else editable.textContent=draft;document.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));paint();active.focus()}));
+[plain,editable].forEach(el=>el.addEventListener('input',()=>{if(el===editable&&!el.textContent)el.replaceChildren();paint()}));
+send.addEventListener('pointerdown',event=>event.preventDefault());
+send.addEventListener('click',()=>{const text=value().trim();if(!text)return;const bubble=document.createElement('div');bubble.className='bubble';bubble.textContent=text;const messages=document.querySelector('.messages');messages.append(bubble);if(active===plain)plain.value='';else editable.replaceChildren();paint();messages.scrollTop=messages.scrollHeight;status.textContent='Текст добавлен только на тестовый экран'});
+document.querySelector('.hide').addEventListener('click',()=>{active.blur();if(insideTelegram&&tg.isVersionAtLeast('9.1'))tg.hideKeyboard()});
+window.visualViewport?.addEventListener('resize',viewport);window.addEventListener('resize',viewport);viewport();paint();
+</script>
+</body>
+</html>

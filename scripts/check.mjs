@@ -11,6 +11,9 @@ for (const [, attributes, code] of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/
   new Script(code, { filename: `index.html (script ${++count})` });
 }
 if (!count) throw new Error('No application script found');
+for (const [, attributes, code] of read('keyboard-test.html').matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
+  if (!/\bsrc\s*=/.test(attributes)) new Script(code, {filename: 'keyboard-test.html'});
+}
 new Script(read('sw.js'), { filename: 'sw.js' });
 new Script(read('voice.js'), { filename: 'voice.js' });
 new Script(read('notifications.js'), { filename: 'notifications.js' });
