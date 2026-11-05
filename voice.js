@@ -1,12 +1,12 @@
 /* Audio and drafts stay in memory. A transcript is never submitted automatically. */
-let VOICE=null;
+let VOICE=null,VOICE_RETRY=null;
 const MIC_ICON='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg>';
 function voiceButton(id){return `<button type="button" class="mic" data-voice="${id}" aria-label="Ввести голосом" title="Ввести голосом" onpointerdown="event.preventDefault()" onclick="voiceToggle('${id}')">${MIC_ICON}</button>`}
 function voicePaint(){
  document.querySelectorAll('[data-voice]').forEach(b=>{const active=VOICE&&b.dataset.voice==VOICE.id,recording=!!active&&VOICE.phase=='recording';b.disabled=!!VOICE&&!active;b.classList.toggle('recording',recording);if(!recording)b.style?.removeProperty('--voice-level');b.setAttribute('aria-label',active?(recording?'Остановить запись':'Отменить голосовой ввод'):'Ввести голосом');b.innerHTML=recording?'<span class="mic-stop"></span>':MIC_ICON});
  document.querySelectorAll('.ce').forEach(t=>sbtn(t));
 }
-function voiceStatus(session,text){if(VOICE!==session)return;let bar=document.getElementById('voice-status');if(!bar){bar=document.createElement('div');bar.id='voice-status';bar.className='voice-status';const status=document.createElement('span');status.setAttribute('role','status');status.setAttribute('aria-live','polite');const cancel=document.createElement('button');cancel.type='button';cancel.textContent='Отмена';cancel.onclick=voiceCancel;bar.append(status,cancel);session.target.closest('.cmp,.send').before(bar)}bar.firstChild.textContent=text;}
+function voiceStatus(session,text){if(VOICE!==session&&VOICE_RETRY!==session)return;let bar=document.getElementById('voice-status');if(!bar){bar=document.createElement('div');bar.id='voice-status';bar.className='voice-status';const status=document.createElement('span');status.setAttribute('role','status');status.setAttribute('aria-live','polite');const cancel=document.createElement('button');cancel.type='button';cancel.textContent='Отмена';cancel.onclick=voiceCancel;bar.append(status,cancel);session.target.closest('.cmp,.send').before(bar)}bar.firstChild.textContent=text;}
 function voiceClock(seconds){seconds=Math.max(0,Math.floor(seconds));return `${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`}
 function voiceLevel(previous,rms){const target=Math.min(1,Math.max(0,(rms-.012)*8));const level=previous+(target-previous)*(target>previous?.4:.12);return level<.002?0:level}
 function voiceMeter(s){
@@ -25,9 +25,10 @@ function voiceRelease(s){
  try{if(s.audioContext&&s.audioContext.state!='closed')s.audioContext.close().catch(()=>{})}catch{}
  s.button?.style.setProperty('--voice-level','0');s.stream?.getTracks().forEach(t=>t.stop());
 }
-function voiceCancel(){const s=VOICE;if(!s)return;VOICE=null;s.cancelled=true;s.controller?.abort();voiceRelease(s);if(s.recorder?.state=='recording')s.recorder.stop();document.getElementById('voice-status')?.remove();voicePaint();}
+function voiceCancel(){const s=VOICE||VOICE_RETRY;if(!s)return;VOICE=VOICE_RETRY=null;s.cancelled=true;s.controller?.abort();voiceRelease(s);s.blob=null;s.parts=null;if(s.recorder?.state=='recording')s.recorder.stop();document.getElementById('voice-status')?.remove();voicePaint();}
 async function voiceToggle(id){
  if(VOICE){if(VOICE.id==id&&VOICE.phase=='recording')VOICE.recorder.stop();else voiceCancel();return}
+ if(VOICE_RETRY)voiceCancel();
  const target=document.getElementById(id);if(!target)return;
  if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder)return toast('Откройте приложение в современном браузере по HTTPS.',{type:'warning',title:'Голосовой ввод недоступен'});
  kbClose();target.blur();const s={id,target,phase:'permission',chunks:[],cancelled:false};VOICE=s;voiceStatus(s,'Разрешите доступ к микрофону');voicePaint();
@@ -64,23 +65,61 @@ async function voiceEncode(blob){
  return voiceSegments(buffer).map(part=>{const bytes=voiceWav(part);let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(binary)});
 }
 function voiceDelay(s,ms){return new Promise(resolve=>{const timer=setTimeout(()=>{s.cancelWait=null;resolve()},ms);s.cancelWait=()=>{clearTimeout(timer);s.cancelWait=null;resolve()}})}
+async function voiceRequest(s,audio){
+ for(let attempt=0;attempt<2;attempt++){
+  if(VOICE!==s)throw Error('cancelled');
+  if(s.lastRequest)await voiceDelay(s,Math.max(0,5200-(Date.now()-s.lastRequest)));
+  if(VOICE!==s)throw Error('cancelled');
+  s.controller=new AbortController();s.timeout=setTimeout(()=>s.controller.abort(),45000);
+  try{
+   s.lastRequest=Date.now();
+   const response=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'transcribe',audio}),signal:s.controller.signal});
+   const data=await response.json().catch(()=>({}));
+   if(!response.ok){const code=response.status==429?'rate':data.error||'server';const transient=response.status>=500&&!['audio_rejected','ai_access'].includes(code);throw Object.assign(Error(code),{transient})}
+   if(typeof data.text!=='string')throw Object.assign(Error('transcript'),{transient:true});
+   return data.text.trim();
+  }catch(error){
+   if(VOICE!==s)throw error;
+   if(!error.transient&&!['AbortError','TypeError'].includes(error.name))throw error;
+   if(attempt)throw error;
+   voiceStatus(s,'Сервис занят. Повторяю распознавание…');
+  }finally{clearTimeout(s.timeout)}
+ }
+}
+function voiceInsert(s,text){
+ if(!text||VOICE!==s||!s.target.isConnected)return;
+ kbFlush();const existing=s.target.textContent.trim();s.target.textContent=existing+(existing?' ':'')+text;
+ if(typeof CK!='undefined'&&CK&&KT===s.target)kbSync(true);gr(s.target);
+}
+function voiceKeepForRetry(s){
+ VOICE=null;VOICE_RETRY=s;voicePaint();voiceStatus(s,'Запись доступна для повтора');
+ const bar=document.getElementById('voice-status');if(!bar?.append)return;
+ const retry=document.createElement('button');retry.type='button';retry.textContent='Повторить';retry.onclick=()=>voiceRetry(s);bar.insertBefore(retry,bar.lastChild);
+}
+function voiceRetry(s=VOICE_RETRY){if(!s||VOICE||VOICE_RETRY!==s||!s.target.isConnected)return;VOICE_RETRY=null;VOICE=s;document.getElementById('voice-status')?.remove();return voiceFinish(s)}
+function voiceFailure(s,error){
+ const code=error.name=='AbortError'?'timeout':error.name=='TypeError'?'network':error.message=='bad_audio'?'audio_rejected':error.message;
+ const messages={rate:['Лимит запросов исчерпан','Попробуйте позже.'],short:['Запись слишком короткая','Скажите несколько слов и повторите запись.'],empty:['Запись пуста','Попробуйте записать сообщение ещё раз.'],codec:['Не удалось прочитать аудио','Браузер не смог подготовить запись. Попробуйте записать ещё раз.'],network:['Нет связи с сервисом','Проверьте интернет и нажмите «Повторить».'],timeout:['Сервис не успел ответить','Нажмите «Повторить», чтобы отправить запись снова.'],audio_rejected:['Сервис отклонил запись','Попробуйте записать сообщение ещё раз.'],ai_access:['Распознавание недоступно','Сервис не предоставил доступ. Попробуйте позже.']};
+ const [title,message]=messages[code]||['Не удалось распознать запись','Сервис временно не ответил. Нажмите «Повторить».'];
+ const retry=!!s.blob&&s.target.isConnected&&!['short','empty','codec','audio_rejected'].includes(code);
+ if(retry)voiceKeepForRetry(s);else voiceCancel();
+ const draft=s.target.textContent.trim()?' Набранный текст остался в поле.':'';
+ toast(message+draft,{type:['short','empty','codec'].includes(code)?'warning':'error',title});
+}
 async function voiceFinish(s){
  voiceRelease(s);if(VOICE!==s||s.cancelled)return;s.phase='processing';voiceStatus(s,'Распознаю речь…');voicePaint();
  try{
-  if(Date.now()-s.started<450)throw Error('short');const blob=new Blob(s.chunks,{type:s.recorder.mimeType});s.chunks=[];if(!blob.size)throw Error('empty');
-  const encoded=await voiceEncode(blob),parts=Array.isArray(encoded)?encoded:[encoded],texts=[];let lastRequest=0;
-  for(let i=0;i<parts.length;i++){
-   if(VOICE!==s)return;
-   if(i)await voiceDelay(s,Math.max(0,5200-(Date.now()-lastRequest)));
-   if(VOICE!==s)return;voiceStatus(s,parts.length>1?`Распознаю речь… ${i+1} / ${parts.length}`:'Распознаю речь…');
-   s.controller=new AbortController();s.timeout=setTimeout(()=>s.controller.abort(),45000);let response;
-   try{lastRequest=Date.now();response=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'transcribe',audio:parts[i]}),signal:s.controller.signal})}finally{clearTimeout(s.timeout)}
-   const data=await response.json();if(!response.ok)throw Error(response.status==429?'rate':'server');if(VOICE!==s||!s.target.isConnected)return;
-   if(typeof data.text=='string'&&data.text.trim())texts.push(data.text.trim());
+  if(Date.now()-s.started<450)throw Error('short');
+  if(!s.blob){s.blob=new Blob(s.chunks,{type:s.recorder.mimeType});s.chunks=[]}if(!s.blob.size)throw Error('empty');
+  if(!s.parts){let encoded;try{encoded=await voiceEncode(s.blob)}catch{throw Error('codec')}s.parts=Array.isArray(encoded)?encoded:[encoded]}
+  for(let i=s.nextPart||0;i<s.parts.length;i++){
+   if(VOICE!==s||!s.target.isConnected)return;voiceStatus(s,s.parts.length>1?`Распознаю речь… ${i+1} / ${s.parts.length}`:'Распознаю речь…');
+   const text=await voiceRequest(s,s.parts[i]);if(VOICE!==s||!s.target.isConnected)return;
+   voiceInsert(s,text);s.hasSpeech=!!(s.hasSpeech||text);s.nextPart=i+1;
   }
-  const text=texts.join(' ');if(!text){voiceCancel();toast('Говорите чуть ближе к микрофону и попробуйте снова.',{type:'warning',title:'Не удалось расслышать'});return}
-  kbFlush();const existing=s.target.textContent.trim();s.target.textContent=existing+(existing?' ':'')+text;if(typeof CK!='undefined'&&CK&&KT===s.target)kbSync(true);VOICE=null;document.getElementById('voice-status')?.remove();voicePaint();gr(s.target);toast('Проверьте и при необходимости отредактируйте перед отправкой.',{type:'success',title:'Текст готов'});
- }catch(e){if(VOICE!==s)return;voiceCancel();toast(e.message=='rate'?'Попробуйте позже. Текст в поле сохранён.':e.message=='short'?'Скажите несколько слов и повторите запись.':'Попробуйте ещё раз. Текст в поле сохранён.',{type:e.message=='short'?'warning':'error',title:e.message=='rate'?'Лимит запросов исчерпан':e.message=='short'?'Запись слишком короткая':'Не удалось распознать запись'});}
+  if(!s.hasSpeech){voiceCancel();toast('Говорите чуть ближе к микрофону и попробуйте снова.',{type:'warning',title:'Не удалось расслышать'});return}
+  voiceCancel();toast('Проверьте и при необходимости отредактируйте перед отправкой.',{type:'success',title:'Текст готов'});
+ }catch(e){if(VOICE!==s)return;voiceFailure(s,e);}
 }
 document.addEventListener('visibilitychange',()=>{if(document.hidden)voiceCancel()});
 window.addEventListener('pagehide',voiceCancel);

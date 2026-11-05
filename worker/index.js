@@ -72,10 +72,18 @@ export default{async fetch(req,env){
   if(!m.length||m.at(-1).role!='user')return j({error:'bad'},400);
   body={systemInstruction:{parts:[{text:SYS+'\n\n'+String(b.context||'').slice(0,6000)}]},contents:m,generationConfig:{responseMimeType:'application/json',maxOutputTokens:900,temperature:.5}};
  }else return j({error:'bad'},400);
- const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${env.MODEL||'gemini-2.5-flash-lite'}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':env.GEMINI_KEY},body:JSON.stringify(body)});
+ let r;
+ try{r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${env.MODEL||'gemini-2.5-flash-lite'}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':env.GEMINI_KEY},body:JSON.stringify(body)})}
+ catch(e){if(b.mode=='transcribe')return j({error:'unavailable'},503);throw e}
  if(r.status==429)return j({error:'rate'},429);
- if(!r.ok)return j({error:'ai'},502);
- const d=await r.json();
+ if(!r.ok){
+  if(b.mode=='transcribe'){
+   // Expose only status categories, never upstream messages, audio or secrets.
+   return j({error:r.status==400?'audio_rejected':r.status==401||r.status==403?'ai_access':'ai',upstreamStatus:r.status},502);
+  }
+  return j({error:'ai'},502);
+ }
+ let d;try{d=await r.json()}catch(e){if(b.mode=='transcribe')return j({error:'transcript'},502);throw e}
  if(b.mode=='transcribe'){try{return j({text:transcriptionText(d)})}catch{return j({error:'transcript'},502)}}
  return j({text:(d.candidates?.[0]?.content?.parts||[]).map(p=>p.text||'').join('')});
 },async scheduled(e,env,ctx){ctx.waitUntil(tick(env))}}
