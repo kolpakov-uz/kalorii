@@ -3,6 +3,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon-192.png"><meta name="theme-color" content="#1E8E5A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Калории">
 <title>Калории — дневник питания</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="telegram.js"></script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap">
 <style>
 :root{--bg:#F2F5F1;--card:#fff;--ink:#17231D;--mut:#6B7D74;--line:#E1E8E3;--acc:#1E8E5A;--on:#fff;--p:#3A6FF0;--f:#F2A31B;--c:#E8594F;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -212,13 +214,19 @@ button{transition:transform .12s ease,filter .12s,background .2s,opacity .2s}
 @media(prefers-reduced-motion:reduce){.mic.recording::before,.mic.recording::after{animation:none;opacity:calc(var(--voice-level)*.5);transform:scale(calc(1 + var(--voice-level)*.25))}}
 @media(max-width:360px){.cmp,.send{gap:5px}.cmp #ai,.send #ci{padding-left:11px;padding-right:11px}}
 .cmp #ai,.send #ci{min-height:46px;padding-top:11px;padding-bottom:11px}
+.tg #app{padding-top:calc(18px + var(--tg-app-top,0px));padding-bottom:calc(110px + var(--tg-app-bottom,0px))}
+.tg .tabs{padding-bottom:calc(8px + var(--tg-app-bottom,0px))}.tg .ov{padding-top:var(--tg-app-top,0px)}.tg .sh{padding-bottom:calc(20px + var(--tg-app-bottom,0px))}
+.tg #toast{top:calc(12px + var(--tg-app-top,0px))}.tg .comp{bottom:calc(62px + var(--tg-app-bottom,0px))}.tg body.kbd .comp{bottom:var(--kb,0px)}
 </style></head><body>
 <div id="app"></div><div id="sheet"></div><nav class="tabs"><div id="tabs"></div></nav><div id="toast" role="status" aria-live="polite" aria-atomic="true" inert></div>
+<input type="file" id="diary-file" accept="application/json,.json" hidden onchange="previewDiary(this.files[0])">
+<script src="diary-backup.js"></script>
+<script src="diary-transfer.js"></script>
 <script src="notifications.js"></script>
 <script src="voice.js"></script>
 <script>
 const $=s=>document.querySelector(s),esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const API='https://kalorii-ai.crytime04.workers.dev',VAPID='BLUkRGWHKuz1TYcfLPUf_TXspMMi-wUXHV5l7CLxRW7AtFNGD7UczkqgTdlNpqbmaZAkwOiuzCh49tyJxNZDdSo',KEY='kalorii-v1',MEALS=[['b','Завтрак'],['l','Обед'],['d','Ужин'],['s','Перекус']];
+const API='https://kalorii-ai.crytime04.workers.dev',VAPID='BLUkRGWHKuz1TYcfLPUf_TXspMMi-wUXHV5l7CLxRW7AtFNGD7UczkqgTdlNpqbmaZAkwOiuzCh49tyJxNZDdSo',KEY=KaloriiTelegram.storageKey('kalorii-v1'),MEALS=[['b','Завтрак'],['l','Обед'],['d','Ужин'],['s','Перекус']];
 const REM=[['b','Завтрак','08:30','Пора записать завтрак'],['l','Обед','13:00','Не забудьте внести обед'],['d','Ужин','19:00','Время ужина — добавьте его в дневник'],['s','Перекус','16:30','Время перекуса — внесите его в дневник'],['e','Вечерний итог','21:00','Посмотрите итоги дня и совет тренера']],GOALS=[['lose','Сжечь жир','Умеренный дефицит калорий'],['gain','Набрать мышцы','Профицит и больше белка'],['abs','Рельефный пресс','Дефицит и много белка'],['keep','Держать форму','Баланс калорий']];
 const DB=[['Куриная грудка, варёная',165,31,3.6,0],['Гречка варёная',110,4,1,21],['Рис варёный',130,2.7,.3,28],['Яйцо куриное',157,13,11,1],['Творог 5%',121,17,5,3],['Овсянка на воде',88,3,1.7,15],['Банан',89,1.1,.3,23],['Яблоко',52,.3,.2,14],['Хлеб ржаной',214,6,1,45],['Сыр твёрдый',350,25,27,0],['Картофель варёный',82,2,.4,17],['Лосось',208,20,13,0],['Макароны варёные',158,5.5,.9,31],['Кефир 2,5%',53,3,2.5,4],['Оливковое масло',884,0,100,0],['Огурец',15,.8,.1,3],['Говядина тушёная',250,26,16,0],['Йогурт натуральный',66,5,3,4]];
 let S={profile:null,log:{},water:{},weights:[],custom:null,foods:[],goal:null,meas:[],coachMode:'strict',wk:[],wkGoal:3,dc:{},rem:{on:{},t:{},fired:{}},chat:[]},V='today';
@@ -232,16 +240,17 @@ const items=d=>S.log[d]||[];
 const tot=d=>items(d).reduce((a,i)=>({k:a.k+i.k,p:a.p+i.p,f:a.f+i.f,c:a.c+i.c}),{k:0,p:0,f:0,c:0});
 function norm(p,raw){const b=10*p.w+6.25*p.h-5*p.a+(p.sex=='m'?5:-161),g={lose:[.85,1.8],gain:[1.1,1.8],abs:[.88,2.2],keep:[1,1.4]}[p.goal]||[1,1.4];let k=Math.max(1200,R(b*p.act*g[0]/10)*10);const pr=R(p.w*g[1]),f=R(k*.27/9),r={k,p:pr,f,c:Math.max(0,R((k-pr*4-f*9)/4))};if(S.custom&&!raw){const c=S.custom;return{k:c.p*4+c.f*9+c.c*4,p:c.p,f:c.f,c:c.c}}return r}
 const IC={goal:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="0.8"/>',today:'<path d="M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1h-4v-5H9v5H5a1 1 0 0 1-1-1z"/>',coach:'<path d="M5 6h14a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-7l-4 3v-3H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z"/>',stats:'<path d="M5 20V11M12 20V5M19 20v-7"/>',set:'<path d="M4 8h9M17 8h3M4 16h3M11 16h9"/><circle cx="15" cy="8" r="2"/><circle cx="9" cy="16" r="2"/>'};
+function telegramBackState(){KaloriiTelegram.back(!!S.profile&&(V!=='today'||!!document.querySelector('#sheet .ov')))}
 function go(k){kbClose();V=k;render();const a=$('#app');a.classList.remove('vf');void a.offsetWidth;a.classList.add('vf');if(k!='coach')scrollTo(0,0);anim();setTimeout(()=>a.classList.remove('vf'),1100)}
 let SY=0;
 function lockBody(){const b=document.body;if(b.style.position!='fixed'){SY=scrollY;b.style.cssText+=`;position:fixed;top:-${SY}px;left:0;right:0`}}
 function unlockBody(){const b=document.body;if(b.style.position=='fixed'){b.style.position=b.style.top=b.style.left=b.style.right='';scrollTo(0,SY)}}
 let CS=0;
-function sheet(h,lock){CS++;$('#sheet').innerHTML=`<div class="ov" ${lock?'':'onclick="if(event.target==this)closeSheet()"'}><div class="sh">${lock?'':'<div class="grab"></div>'}${h}</div></div>`;lockBody();fixVV()}
+function sheet(h,lock){CS++;$('#sheet').innerHTML=`<div class="ov" ${lock?'':'onclick="if(event.target==this)closeSheet()"'}><div class="sh">${lock?'':'<div class="grab"></div>'}${h}</div></div>`;lockBody();fixVV();telegramBackState()}
 function fixVV(){const o=document.querySelector('#sheet .ov'),v=window.visualViewport;if(!o)return;if(CK){o.classList.add('kb');o.style.height='';o.style.top='';o.style.bottom=''}else if(v){const kb=innerHeight-v.height>120;o.classList.toggle('kb',kb);if(kb){o.style.height=v.height+'px';o.style.top=v.offsetTop+'px';o.style.bottom='auto'}else{o.style.height='';o.style.top='';o.style.bottom=''}}const a=document.getElementById('am');if(a)a.scrollTop=a.scrollHeight}
 if(window.visualViewport){visualViewport.addEventListener('resize',fixVV);visualViewport.addEventListener('scroll',fixVV)}
-function closeSheet(skip){voiceCancel();kbClose();const o=document.querySelector('#sheet .ov'),t=++CS;if(o&&!skip)o.classList.add('out');setTimeout(()=>{if(t==CS){$('#sheet').innerHTML='';unlockBody()}},o?220:0)}
-function render(){voiceCancel();
+function closeSheet(skip){voiceCancel();kbClose();const o=document.querySelector('#sheet .ov'),t=++CS;if(o&&!skip)o.classList.add('out');setTimeout(()=>{if(t==CS){$('#sheet').innerHTML='';unlockBody();telegramBackState()}},o?220:0)}
+function render(){voiceCancel();telegramBackState();
  $('#tabs').innerHTML=[['today','Сегодня'],['goal','Цель'],['coach','ИИ-тренер'],['stats','Прогресс'],['set','Настройки']].map(([k,n])=>`<button class="${V==k?'on':''}" aria-label="${n}" onclick="go('${k}')"><svg viewBox="0 0 24 24" aria-hidden="true">${IC[k]}</svg></button>`).join('');
  if(!S.profile){$('#app').innerHTML='<h1>Калории</h1><p class="sub">Дневник питания с ИИ-тренером</p>';return openProfile()}
  $('#app').innerHTML={today:vToday,goal:vGoal,coach:vCoach,stats:vStats,set:vSet}[V]();if(V=='coach')scrollTo(0,document.body.scrollHeight)}
@@ -264,7 +273,7 @@ function openProfile(){const p=S.profile||{sex:'m',a:30,h:175,w:75,act:1.375,goa
  sheet(`<h2>${S.profile?'Ваши данные и цель':'Какая у вас цель?'}</h2><p class="sub">${S.profile?'После изменения норма пересчитается.':'От цели зависит норма калорий и БЖУ.'}</p><div class="g2">${GOALS.map(([k,t,d])=>`<button class="tile ${k==G?'on':''}" data-g="${k}" onclick="pickGoal('${k}')"><b>${t}</b><small>${d}</small></button>`).join('')}</div>
  <div class="g2" style="margin-top:14px"><label>Пол<select id="s_sex">${o('m',p.sex,'Мужской')}${o('f',p.sex,'Женский')}</select></label><label>Возраст<input id="s_a" type="number" inputmode="numeric" value="${p.a}"></label><label>Рост, см<input id="s_h" type="number" inputmode="numeric" value="${p.h}"></label><label>Вес, кг<input id="s_w" type="number" inputmode="decimal" value="${p.w}"></label></div>
  <label style="margin-top:10px">Активность<select id="s_act">${o(1.2,p.act,'Сидячий образ жизни')}${o(1.375,p.act,'Тренировки 1–3 раза в неделю')}${o(1.55,p.act,'Тренировки 3–5 раз в неделю')}${o(1.725,p.act,'Ежедневные нагрузки')}</select></label>
- <button class="pri" onclick="saveProfile()">Рассчитать норму</button>`,!S.profile)}
+ <button class="pri" onclick="saveProfile()">Рассчитать норму</button>${!S.profile?'<button class="ghost" onclick="chooseDiary()">Перенести дневник из файла</button>':''}`,!S.profile)}
 function saveProfile(){const g=i=>+$('#'+i).value,p={sex:$('#s_sex').value,a:g('s_a'),h:g('s_h'),w:g('s_w'),act:g('s_act'),goal:G};
  if(!(p.a>=14&&p.a<=100&&p.h>=120&&p.h<=230&&p.w>=35&&p.w<=250))return toast('Проверьте возраст, рост и вес');
  S.profile=p;S.custom=null;if(!S.weights.length||S.weights.at(-1).d!=today())S.weights.push({d:today(),w:p.w});save();closeSheet();render()}
@@ -391,18 +400,19 @@ function vSet(){const p=S.profile,n=norm(p),fk=['b','l','d','s'],W=S.rem.wc||{fr
  return `<h1>Настройки</h1><section class="card"><div class="mh"><h3>Дневная норма</h3></div><p class="em">${n.k} ккал · белки ${n.p} г · жиры ${n.f} г · углеводы ${n.c} г${S.custom?' · изменено вручную':''}</p><div class="g2"><button class="sm" onclick="openMacros()">Настроить БЖУ</button><button class="sm" onclick="openProfile()">Данные и цель</button></div></section>
  <section class="card"><div class="mh"><h3>Уведомления о еде</h3><button class="sw ${any?'on':''}" role="switch" aria-checked="${any}" aria-label="Все уведомления о еде" onclick="setGroup(['b','l','d','s'])"></button></div>${REM.filter(r=>fk.includes(r[0])).map(row).join('')}</section>
  <section class="card"><div class="mh"><h3>Уведомления о воде</h3>${sw('w')}</div><div class="row"><span>С</span><input type="time" value="${W.from}" aria-label="Начало" onchange="wc('from',this.value)"></div><div class="row"><span>До</span><input type="time" value="${W.to}" aria-label="Конец" onchange="wc('to',this.value)"></div><div class="row"><span>Напоминать каждые</span><select style="width:auto;margin:0" aria-label="Интервал" onchange="wc('ev',+this.value)">${[1,2,3].map(h=>`<option value="${h}" ${W.ev==h?'selected':''}>${h} ч</option>`).join('')}</select></div></section>
- <section class="card"><div class="mh"><h3>Итоги дня</h3></div>${row(REM.find(r=>r[0]=='e'))}<p class="em">${permTxt()}</p><button class="ghost" onclick="testServerPush()">Проверить серверные пуши</button><p class="em" id="pt"></p></section>
- <section class="card"><div class="mh"><h3>Встроенная клавиатура</h3><button class="sw ${OWNKB()?'on':''}" role="switch" aria-checked="${OWNKB()}" aria-label="Встроенная клавиатура" onclick="toggleKb()"></button></div><p class="em">Убирает панель со стрелками над клавиатурой iPhone. Выключите, чтобы вернуть системную клавиатуру.</p></section>
- <section class="card"><h3>Данные</h3><p class="em">Дневник хранится в этом браузере на вашем устройстве.</p><button class="ghost" onclick="if(confirm('Удалить весь дневник и профиль?')){S={profile:null,log:{},water:{},weights:[],custom:null,foods:[],hist:{},goal:null,meas:[],coachMode:'strict',wk:[],wkGoal:3,dc:{},rem:{on:{},t:{},fired:{}},chat:[]};save();render()}">Удалить все данные</button></section>`}
+ <section class="card"><div class="mh"><h3>Итоги дня</h3></div>${row(REM.find(r=>r[0]=='e'))}<p class="em">${permTxt()}</p>${!KaloriiTelegram.active?'<button class="ghost" onclick="testServerPush()">Проверить серверные пуши</button>':''}<p class="em" id="pt"></p></section>
+ ${KaloriiTelegram.active?'<section class="card"><h3>Telegram</h3><p class="em">Используется системная клавиатура телефона. Дневник хранится на этом устройстве, отдельно от версии Safari.</p><button class="ghost" onclick="KaloriiTelegram.addHome()">Добавить иконку на экран</button></section>':''}
+ <section class="card" ${KaloriiTelegram.active?'hidden':''}><div class="mh"><h3>Встроенная клавиатура</h3><button class="sw ${OWNKB()?'on':''}" role="switch" aria-checked="${OWNKB()}" aria-label="Встроенная клавиатура" onclick="toggleKb()"></button></div><p class="em">Убирает панель со стрелками над клавиатурой iPhone. Выключите, чтобы вернуть системную клавиатуру.</p></section>
+ <section class="card"><h3>Данные</h3><p class="em">Дневник хранится на этом устройстве. Автоматическая синхронизация с другими устройствами не подключена.</p>${transferButtons()}<button class="ghost" onclick="restoreDiary()">Вернуть данные до переноса</button><button class="ghost" onclick="if(confirm('Удалить весь дневник и профиль?')){S={profile:null,log:{},water:{},weights:[],custom:null,foods:[],hist:{},goal:null,meas:[],coachMode:'strict',wk:[],wkGoal:3,dc:{},rem:{on:{},t:{},fired:{}},chat:[]};save();render()}">Удалить все данные</button></section>`}
 function wc(k,v){S.rem.wc=S.rem.wc||{from:'09:00',to:'21:00',ev:2};S.rem.wc[k]=v;save()}
-async function setGroup(ks){const on=!ks.some(k=>S.rem.on[k]);if(on&&'Notification' in window&&Notification.permission=='default'){try{await Notification.requestPermission()}catch(e){}}ks.forEach(k=>S.rem.on[k]=on);save();render()}
+async function setGroup(ks){const on=!ks.some(k=>S.rem.on[k]);if(on&&!KaloriiTelegram.active&&'Notification' in window&&Notification.permission=='default'){try{await Notification.requestPermission()}catch(e){}}ks.forEach(k=>S.rem.on[k]=on);save();render()}
 function openMacros(){const n=norm(S.profile),f=(i,l,v)=>`<label>${l}<input id="g_${i}" type="number" inputmode="numeric" value="${v}" oninput="mk()"></label>`;
  sheet(`<h2>Цели БЖУ</h2><p class="sub">Калории пересчитаются автоматически.</p><div class="g2" style="grid-template-columns:repeat(3,1fr)">${f('p','Белки, г',n.p)}${f('f','Жиры, г',n.f)}${f('c','Углеводы, г',n.c)}</div><p class="em" id="mk"></p><div class="warn">Если изменить баланс БЖУ, это может повлиять на то, как быстро вы достигнете цели.</div><button class="pri" onclick="saveMacros()">Сохранить</button>${S.custom?'<button class="ghost" onclick="S.custom=null;save();closeSheet();render()">Вернуть рекомендованные</button>':''}`);mk()}
 function mk(){const g=i=>+$('#g_'+i).value||0,k=g('p')*4+g('f')*9+g('c')*4,r=norm(S.profile,1),d=R((k/r.k-1)*100);$('#mk').innerHTML=`Итого <b>${k} ккал</b> в день`+(Math.abs(d)>=1?` (${d>0?'+':''}${d}% к рекомендованным ${r.k})`:'')}
 function saveMacros(){const g=i=>R(+$('#g_'+i).value);if([g('p'),g('f'),g('c')].some(x=>!(x>=0&&x<=800))||g('p')+g('f')+g('c')<50)return toast('Проверьте значения');S.custom={p:g('p'),f:g('f'),c:g('c')};save();closeSheet();render()}
-async function setRem(k){const on=!S.rem.on[k];if(on&&'Notification' in window&&Notification.permission=='default'){try{await Notification.requestPermission()}catch(e){}}
- S.rem.on[k]=on;save();render();if(on&&!('Notification' in window&&Notification.permission=='granted'))toast('Разрешите уведомления для приложения в настройках iPhone')}
-function permTxt(){const ios=/iPhone|iPad/.test(navigator.userAgent),sa=navigator.standalone||matchMedia('(display-mode:standalone)').matches;if(ios&&!sa)return 'На iPhone системные уведомления работают только после установки: «Поделиться» → «На экран Домой», затем откройте приложение с иконки.';return !('Notification' in window)?'Этот браузер не поддерживает системные уведомления — напоминание появится внутри приложения.':{granted:'Системные уведомления разрешены.',denied:'Системные уведомления запрещены в браузере — напоминание появится внутри приложения.',default:'Разрешение на уведомления ещё не выдано — браузер спросит при запуске теста.'}[Notification.permission]}
+async function setRem(k){const on=!S.rem.on[k];if(on&&!KaloriiTelegram.active&&'Notification' in window&&Notification.permission=='default'){try{await Notification.requestPermission()}catch(e){}}
+ S.rem.on[k]=on;save();render();if(on&&!KaloriiTelegram.active&&!('Notification' in window&&Notification.permission=='granted'))toast('Разрешите уведомления для приложения в настройках iPhone')}
+function permTxt(){if(KaloriiTelegram.active)return 'Напоминания показываются внутри открытого приложения. Фоновые сообщения через Telegram-бота пока не подключены.';const ios=/iPhone|iPad/.test(navigator.userAgent),sa=navigator.standalone||matchMedia('(display-mode:standalone)').matches;if(ios&&!sa)return 'На iPhone системные уведомления работают только после установки: «Поделиться» → «На экран Домой», затем откройте приложение с иконки.';return !('Notification' in window)?'Этот браузер не поддерживает системные уведомления — напоминание появится внутри приложения.':{granted:'Системные уведомления разрешены.',denied:'Системные уведомления запрещены в браузере — напоминание появится внутри приложения.',default:'Разрешение на уведомления ещё не выдано — браузер спросит при запуске теста.'}[Notification.permission]}
 function b64u(s){return Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0))}
 async function testServerPush(){const say=t=>{const o=$('#pt');if(o)o.textContent=t};
  try{if(!hasAPI())return say('Адрес сервера не задан.');
@@ -413,13 +423,13 @@ async function testServerPush(){const say=t=>{const o=$('#pt');if(o)o.textConten
   say((r.status==201||r.status==200)?'Сервер отправил пуш (код '+r.status+'). Он придёт за несколько секунд.':'Пуш не отправлен, код '+r.status+(r.detail?': '+r.detail:'')+(r.key?'':' Нет секрета VAPID_KEY в Worker.')+(r.kv?'':' Нет привязки KV (SUBS).'))}
  catch(e){say(e&&e.code=='rl'?'Слишком часто, подождите минуту.':'Ошибка связи с сервером: Worker не обновлён или недоступен.')}}
 function schedSync(){clearTimeout(syncT);syncT=setTimeout(syncPush,800)}
-async function syncPush(){if(!hasAPI()||!('serviceWorker' in navigator)||!('PushManager' in window)||!('Notification' in window)||Notification.permission!='granted')return;
+async function syncPush(){if(KaloriiTelegram.active||!hasAPI()||!('serviceWorker' in navigator)||!('PushManager' in window)||!('Notification' in window)||Notification.permission!='granted')return;
  const cfg={on:S.rem.on,t:S.rem.t,wc:S.rem.wc||{from:'09:00',to:'21:00',ev:2}},any=Object.values(S.rem.on).some(Boolean),tz=-new Date().getTimezoneOffset(),str=JSON.stringify([cfg,any,tz]);if(str==lastSync)return;
  try{const reg=await navigator.serviceWorker.ready;let sub=await reg.pushManager.getSubscription();
   if(!any){if(sub)await callAPI({mode:'unsync',endpoint:sub.endpoint});PUSH=false;lastSync=str;return}
   if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64u(VAPID)});
   await callAPI({mode:'sync',sub:sub.toJSON(),tz,cfg});PUSH=true;lastSync=str}catch(e){}}
-async function notify(t,m,tag){try{if('Notification' in window&&Notification.permission=='granted'){const r=SW||(navigator.serviceWorker&&await navigator.serviceWorker.getRegistration());if(r)r.showNotification(t,{body:m,icon:'icon-192.png',badge:'icon-192.png',tag:tag||'kalorii'});else new Notification(t,{body:m})}}catch(e){}}
+async function notify(t,m,tag){if(KaloriiTelegram.active){toast(m,{title:t,type:'info'});return}try{if('Notification' in window&&Notification.permission=='granted'){const r=SW||(navigator.serviceWorker&&await navigator.serviceWorker.getRegistration());if(r)r.showNotification(t,{body:m,icon:'icon-192.png',badge:'icon-192.png',tag:tag||'kalorii'});else new Notification(t,{body:m})}}catch(e){}}
 setInterval(()=>{const hm=new Date().toTimeString().slice(0,5),d=today(),mn=x=>+x.slice(0,2)*60+ +x.slice(3,5);REM.forEach(([k,n,t,m])=>{if(S.rem.on[k]&&hm==(S.rem.t[k]||t)&&S.rem.fired[k]!=d){S.rem.fired[k]=d;save();notify(n,m,k)}});
  const w=S.rem.wc||{from:'09:00',to:'21:00',ev:2};if(S.rem.on.w&&hm>=w.from&&hm<=w.to&&(mn(hm)-mn(w.from))%(w.ev*60)==0&&S.rem.fired.w!=d+hm){S.rem.fired.w=d+hm;save();notify('Вода','Выпейте стакан воды','w')}},20000);
 const GT={abs:{t:'Рельефный пресс',m:'waist',u:'см',d:'Талия и оценка жира'},lose:{t:'Похудеть',m:'weight',u:'кг',d:'Вес, среднее за 7 дней'},arm:{t:'Размер бицепса',m:'arm',u:'см',d:'Обхват руки'},fat:{t:'Процент жира',m:'bf',u:'%',d:'Замеры прибором'}},MN={waist:'Талия',weight:'Вес',arm:'Бицепс',bf:'Жир'};
@@ -545,7 +555,7 @@ function saveWorkout(){const d=new Date();d.setDate(d.getDate()-WD);const k=d.to
 document.addEventListener('touchmove',e=>{if(!document.querySelector('#sheet .ov'))return;let n=e.target;while(n&&n!==document.body&&n.nodeType==1){const c=getComputedStyle(n);if((/(auto|scroll)/.test(c.overflowY)&&n.scrollHeight>n.clientHeight+1)||(/(auto|scroll)/.test(c.overflowX)&&n.scrollWidth>n.clientWidth+1))return;n=n.parentNode}e.preventDefault()},{passive:false});
 let CK=false,CKh=0,KT=null,KL='ru',LL='ru',SH=1,KS=0,KP=0,KHT=0;
 const KH=228,SAFE=(()=>{try{const p=document.createElement('div');p.style.cssText='position:fixed;left:0;bottom:0;width:1px;height:env(safe-area-inset-bottom,0px);visibility:hidden';document.body.append(p);const h=p.offsetHeight;p.remove();return h||0}catch(e){return 0}})();
-const OWNKB=()=>S.ownKb!==false,ALT={'е':'ё','ь':'ъ'};
+const OWNKB=()=>!KaloriiTelegram.active&&S.ownKb!==false,ALT={'е':'ё','ь':'ъ'};
 const KR={ru:['йцукенгшщзх','фывапролджэ','ячсмитьбю'],en:['qwertyuiop','asdfghjkl','zxcvbnm'],num:['1234567890','-/:;()₽&@"',".,?!'"],sym:['[]{}#%^*+=','_\\|~<>€£¥•',".,?!'"]};
 const EMO=Array.from('🍎🍌🍇🍓🥑🥦🥕🌽🍞🥐🧀🥚🥓🍗🍖🥩🍕🍔🍟🌭🥪🌮🍜🍝🍣🍱🍚🍲🥗🍦🍰🍫☕🍵🥛🍺😀😊😅😋😍😉😎🤔👍👌🙏💪🔥');
 const SV=p=>`<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
@@ -622,5 +632,6 @@ document.addEventListener('pointerdown',e=>{const f=e.target.closest('.ce');if(!
 document.addEventListener('pointerup',()=>clearTimeout(LT));document.addEventListener('pointercancel',()=>clearTimeout(LT));document.addEventListener('pointermove',e=>{if(Math.abs(e.clientX-LX)>8)clearTimeout(LT)});
 document.addEventListener('touchmove',e=>{if(CK&&e.target.closest('#vk')&&!e.target.closest('.eg'))e.preventDefault()},{passive:false});
 if(window.visualViewport){const kbFix=()=>{if(CK)return;const v=visualViewport;document.documentElement.style.setProperty('--kb',Math.max(0,innerHeight-v.height-v.offsetTop)+'px');document.body.classList.toggle('kbd',innerHeight-v.height>120);if(V=='coach'&&innerHeight-v.height>120)setTimeout(()=>toBot(),60)};visualViewport.addEventListener('resize',kbFix);visualViewport.addEventListener('scroll',kbFix)}
+KaloriiTelegram.init(()=>{if(!S.profile)return;if(document.querySelector('#sheet .ov'))closeSheet();else go('today')});
 render();anim();schedSync();
 </script></body></html>
