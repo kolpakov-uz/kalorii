@@ -13,6 +13,7 @@ for (const [, attributes, code] of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/
 if (!count) throw new Error('No application script found');
 new Script(read('sw.js'), { filename: 'sw.js' });
 new Script(read('voice.js'), { filename: 'voice.js' });
+new Script(read('notifications.js'), { filename: 'notifications.js' });
 const manifest = JSON.parse(read('manifest.webmanifest'));
 for (const { src } of manifest.icons) {
   if (!existsSync(fileURLToPath(new URL(src, root)))) throw new Error(`Missing icon: ${src}`);

@@ -29,7 +29,7 @@ function voiceCancel(){const s=VOICE;if(!s)return;VOICE=null;s.cancelled=true;s.
 async function voiceToggle(id){
  if(VOICE){if(VOICE.id==id&&VOICE.phase=='recording')VOICE.recorder.stop();else voiceCancel();return}
  const target=document.getElementById(id);if(!target)return;
- if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder)return toast('Голосовой ввод недоступен. Откройте приложение в современном браузере по HTTPS.');
+ if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder)return toast('Откройте приложение в современном браузере по HTTPS.',{type:'warning',title:'Голосовой ввод недоступен'});
  kbClose();target.blur();const s={id,target,phase:'permission',chunks:[],cancelled:false};VOICE=s;voiceStatus(s,'Разрешите доступ к микрофону');voicePaint();
  try{
   // Created inside the tap gesture so Safari can run the input analyser.
@@ -40,11 +40,11 @@ async function voiceToggle(id){
   const mime=['audio/webm;codecs=opus','audio/mp4','audio/ogg;codecs=opus'].find(t=>MediaRecorder.isTypeSupported(t));
   s.recorder=new MediaRecorder(s.stream,{...(mime?{mimeType:mime}:{}),audioBitsPerSecond:32000});
   s.recorder.ondataavailable=e=>{if(e.data.size)s.chunks.push(e.data)};
-  s.recorder.onerror=()=>{if(VOICE===s){voiceCancel();toast('Запись прервалась. Попробуйте ещё раз.')}};
+  s.recorder.onerror=()=>{if(VOICE===s){voiceCancel();toast('Попробуйте записать сообщение ещё раз.',{type:'error',title:'Запись прервалась'})}};
   s.recorder.onstop=()=>voiceFinish(s);s.started=Date.now();s.recorder.start(250);s.phase='recording';
   s.button=document.querySelector(`[data-voice="${id}"]`);
   const tick=()=>voiceStatus(s,`Запись ${voiceClock((Date.now()-s.started)/1000)} · нажмите ■`);tick();s.timer=setInterval(tick,1000);voicePaint();voiceMeter(s);
- }catch(e){if(VOICE!==s)return;voiceCancel();toast(e.name=='NotAllowedError'?'Разрешите микрофон в настройках браузера.':e.name=='NotFoundError'?'Микрофон не найден.':'Не удалось включить микрофон. Попробуйте ещё раз.');}
+ }catch(e){if(VOICE!==s)return;voiceCancel();toast(e.name=='NotAllowedError'?'Разрешите доступ к микрофону в настройках браузера.':e.name=='NotFoundError'?'Подключите микрофон и попробуйте снова.':'Попробуйте включить микрофон ещё раз.',{type:'warning',title:e.name=='NotAllowedError'?'Нужен доступ к микрофону':e.name=='NotFoundError'?'Микрофон не найден':'Микрофон недоступен'});}
 }
 function voiceWav(buffer){
  const count=buffer.length,out=new ArrayBuffer(44+count*2),v=new DataView(out);const str=(at,t)=>{for(let i=0;i<t.length;i++)v.setUint8(at+i,t.charCodeAt(i))};
@@ -78,9 +78,9 @@ async function voiceFinish(s){
    const data=await response.json();if(!response.ok)throw Error(response.status==429?'rate':'server');if(VOICE!==s||!s.target.isConnected)return;
    if(typeof data.text=='string'&&data.text.trim())texts.push(data.text.trim());
   }
-  const text=texts.join(' ');if(!text){voiceCancel();toast('Речь не распознана. Попробуйте говорить ближе к микрофону.');return}
-  kbFlush();const existing=s.target.textContent.trim();s.target.textContent=existing+(existing?' ':'')+text;if(typeof CK!='undefined'&&CK&&KT===s.target)kbSync(true);VOICE=null;document.getElementById('voice-status')?.remove();voicePaint();gr(s.target);toast('Текст готов — проверьте его перед отправкой.');
- }catch(e){if(VOICE!==s)return;voiceCancel();toast(e.message=='rate'?'Лимит запросов исчерпан. Попробуйте позже.':e.message=='short'?'Запись слишком короткая. Попробуйте ещё раз.':'Не удалось распознать запись. Текст в поле сохранён.');}
+  const text=texts.join(' ');if(!text){voiceCancel();toast('Говорите чуть ближе к микрофону и попробуйте снова.',{type:'warning',title:'Не удалось расслышать'});return}
+  kbFlush();const existing=s.target.textContent.trim();s.target.textContent=existing+(existing?' ':'')+text;if(typeof CK!='undefined'&&CK&&KT===s.target)kbSync(true);VOICE=null;document.getElementById('voice-status')?.remove();voicePaint();gr(s.target);toast('Проверьте и при необходимости отредактируйте перед отправкой.',{type:'success',title:'Текст готов'});
+ }catch(e){if(VOICE!==s)return;voiceCancel();toast(e.message=='rate'?'Попробуйте позже. Текст в поле сохранён.':e.message=='short'?'Скажите несколько слов и повторите запись.':'Попробуйте ещё раз. Текст в поле сохранён.',{type:e.message=='short'?'warning':'error',title:e.message=='rate'?'Лимит запросов исчерпан':e.message=='short'?'Запись слишком короткая':'Не удалось распознать запись'});}
 }
 document.addEventListener('visibilitychange',()=>{if(document.hidden)voiceCancel()});
 window.addEventListener('pagehide',voiceCancel);
