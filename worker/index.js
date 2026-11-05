@@ -43,11 +43,12 @@ export default{async fetch(req,env){
  if(req.method=='OPTIONS')return new Response(null,{headers:cors});
  if(req.method!='POST'||req.headers.get('Origin')!=allow)return j({error:'forbidden'},403);
  if(+req.headers.get('Content-Length')>2e6)return j({error:'too_big'},413);
- const ip=req.headers.get('CF-Connecting-IP')||'x',now=Date.now(),a=(hits.get(ip)||[]).filter(t=>now-t<60000);
- if(a.length>=6)return j({error:'rate'},429);a.push(now);hits.set(ip,a);
- if(hits.size>5000)hits.clear();
  let b;try{b=await req.json()}catch{return j({error:'bad'},400)}
  if(!b||typeof b!='object'||Array.isArray(b))return j({error:'bad'},400);
+ const ip=req.headers.get('CF-Connecting-IP')||'x',now=Date.now(),key=ip+'|'+(b.mode=='transcribe'?'voice':'main'),a=(hits.get(key)||[]).filter(t=>now-t<60000);
+ if(a.length>=(b.mode=='transcribe'?12:6))return j({error:'rate'},429);a.push(now);hits.set(key,a);
+ if(hits.size>5000)hits.clear();
+
  if(b.mode=='test'){const s=b.sub;if(!s||typeof s.endpoint!='string'||!s.keys||!/^https:\/\/([a-z0-9-]+\.)*(googleapis\.com|push\.apple\.com|mozilla\.com|mozaws\.net|windows\.com)\//.test(s.endpoint))return j({error:'bad'},400);const st=await push(env,s,{tag:'test',title:'Тест пушей',body:'Если вы это видите, серверные пуши работают.'});return j({text:JSON.stringify({status:st,detail:globalThis.__pr||'',kv:!!env.SUBS,key:!!env.VAPID_KEY})})}
  if(b.mode=='sync'||b.mode=='unsync'){
   if(!env.SUBS)return j({error:'no_kv'},500);
