@@ -1,5 +1,6 @@
 import {transcriptionBody,transcriptionText} from './voice.js';
 import {verifyTelegramAccess,allowedTelegramIds} from './telegram-auth.js';
+import {issueBrowserAccess,verifyBrowserAccess,revokeBrowsers} from './browser-auth.js';
 // Прокси между приложением «Калории» и Gemini API. Ключ хранится в секрете GEMINI_KEY.
 const SYS='Ты — ИИ-тренер и помощник в приложении для подсчёта калорий. Пользователь может просить тебя менять данные приложения. Всегда отвечай ТОЛЬКО JSON: {"reply":"короткий ответ по-русски, до 100 слов","actions":[...]}. actions — пустой массив, если менять ничего не нужно. Допустимые действия: {"type":"add_food","date":"YYYY-MM-DD (необязательно)","name":"","meal":"b|l|d|s","grams":0,"kcal":0,"protein":0,"fat":0,"carbs":0} (значения на всю порцию, посчитай сам; b завтрак, l обед, d ужин, s перекус); {"type":"edit_food","id":"id из списка на сегодня","name":"","grams":0,"kcal":0,"protein":0,"fat":0,"carbs":0} (только меняемые поля); {"type":"delete_food","id":""}; {"type":"move_food","id":"","date":"YYYY-MM-DD"}; {"type":"move_day","from":"YYYY-MM-DD","to":"YYYY-MM-DD","meal":"b|l|d|s (необязательно)"}; {"type":"set_macros","protein":0,"fat":0,"carbs":0} (граммы в день); {"type":"reset_macros"}; {"type":"set_goal","goal":"lose|gain|abs|keep"}; {"type":"set_reminder","key":"b|l|d|s|e","on":true,"time":"HH:MM"}; {"type":"set_water_reminder","on":true,"from":"HH:MM","to":"HH:MM","every_hours":2}; {"type":"add_water","ml":0}; {"type":"add_weight","kg":0}. Если пользователь называет день (вчера, позавчера, дату), укажи date, считая от сегодняшней даты из контекста; записи за последние дни есть в контексте вместе с их id. {"type":"add_measure","waist":0,"neck":0,"hip":0,"arm":0,"weight":0} (указывай только названные поля, в см и кг); {"type":"update_goal","start":0,"target":0} (изменить стартовое и/или целевое значение текущей цели-результата; указывай только нужные поля, в см или кг); {"type":"add_workout","kinds":["strength","abs","cardio"],"minutes":45,"date":"YYYY-MM-DD"} (когда пользователь сообщает о тренировке; kinds: один или несколько типов, если тренировка комбинированная, например силовая и пресс; для двух отдельных тренировок за день сделай два действия; date необязательна). Меняй данные только по явной просьбе пользователя. В reply кратко скажи, что сделал. Не ставь диагнозов, не советуй рацион ниже 1200 ккал, при проблемах со здоровьем советуй врача. Режим тренера задан в контексте: мягкий — поддерживающий тон, строгий — прямая оценка без лести и конкретные задания, жёсткий — требовательный и краткий тон. В любом режиме: не стыдить за тело и вес, не называть еду плохой, не советовать голодать, пропускать приёмы пищи или обезвоживаться, не выходить за безопасный темп снижения веса; при признаках недоедания или расстройства питания смягчиться и посоветовать врача; людям до 18 лет не давать советов по снижению веса. Не обещай, что упражнения на пресс убирают жир с живота: жир уходит за счёт питания и общего расхода, а силовые сохраняют мышцы. Не добавляй калории за тренировки к норме.';
 const PHOTO='Ты нутрициолог. На фото еда. Если пользователь добавил текст, учитывай его (жирность, вес, состав). Определи блюда и продукты, оцени вес порции в граммах и КБЖУ всей порции. Названия по-русски. Верни ТОЛЬКО JSON: {"items":[{"name":"...","grams":0,"kcal":0,"protein":0,"fat":0,"carbs":0}]}. Если еды на фото нет или пользователь задал вопрос, верни {"items":[],"reply":"краткий ответ по-русски"}.';
@@ -47,12 +48,22 @@ export default{async fetch(req,env){
  if(+req.headers.get('Content-Length')>2e6)return j({error:'too_big'},413);
  let b;try{b=await req.json()}catch{return j({error:'bad'},400)}
  if(!b||typeof b!='object'||Array.isArray(b))return j({error:'bad'},400);
- const access=await verifyTelegramAccess(b.telegramInitData,env);
+ // Only a verified native Telegram launch can grant or revoke browser access.
+ const management=b.mode=='browser_link'||b.mode=='browser_revoke';
+ const access=management||b.telegramInitData||!b.browserToken?await verifyTelegramAccess(b.telegramInitData,env):await verifyBrowserAccess(b.browserToken,env);
  if(!access.ok)return j({error:access.error},access.status);
  if(b.mode=='access')return j({allowed:true});
- const now=Date.now(),key=access.userId+'|'+(b.mode=='transcribe'?'voice':'main'),a=(hits.get(key)||[]).filter(t=>now-t<60000);
+ if(b.mode=='browser_logout'){
+  if(!access.browserKey)return j({error:'bad'},400);
+  try{await env.SUBS.delete(access.browserKey);return j({ok:true})}catch{return j({error:'browser_unavailable'},503)}
+ }
+ const now=Date.now(),key=access.userId+'|'+(management?'browser':b.mode=='transcribe'?'voice':'main'),a=(hits.get(key)||[]).filter(t=>now-t<60000);
  if(a.length>=(b.mode=='transcribe'?12:6))return j({error:'rate'},429);a.push(now);hits.set(key,a);
  if(hits.size>5000)hits.clear();
+ if(management){
+  try{if(b.mode=='browser_link')return j(await issueBrowserAccess(access.userId,env));await revokeBrowsers(access.userId,env);return j({ok:true})}
+  catch{return j({error:'browser_unavailable'},503)}
+ }
 
  if(b.mode=='test'){const s=b.sub;if(!s||typeof s.endpoint!='string'||!s.keys||!/^https:\/\/([a-z0-9-]+\.)*(googleapis\.com|push\.apple\.com|mozilla\.com|mozaws\.net|windows\.com)\//.test(s.endpoint))return j({error:'bad'},400);const st=await push(env,s,{tag:'test',title:'Тест пушей',body:'Если вы это видите, серверные пуши работают.'});return j({text:JSON.stringify({status:st,detail:globalThis.__pr||'',kv:!!env.SUBS,key:!!env.VAPID_KEY})})}
  if(b.mode=='sync'||b.mode=='unsync'){

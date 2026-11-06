@@ -19,7 +19,9 @@ html{scroll-padding-top:env(safe-area-inset-top,0px)}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:500 15px/1.4 Manrope,system-ui,-apple-system,"Segoe UI",sans-serif}
 #app{max-width:480px;margin:0 auto;padding:18px 16px 110px}
-.brand-header{max-width:480px;margin:0 auto;padding:20px 16px 0}
+.brand-header{max-width:480px;margin:0 auto;padding:20px 16px 0;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.browser-link{border:1px solid var(--line);border-radius:12px;padding:8px 10px;background:var(--card);color:var(--acc);font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer}.browser-link[hidden]{display:none}
+.access-form{margin-top:14px}.access-code{font-family:ui-monospace,monospace;font-size:16px}
 .brand-logo{display:block;width:174px;height:40px}
 .brand-dark{display:none}
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .brand-light{display:none}:root:not([data-theme="light"]) .brand-dark{display:block}}
@@ -234,6 +236,7 @@ button{transition:transform .12s ease,filter .12s,background .2s,opacity .2s}
 <header class="brand-header">
  <img class="brand-logo brand-light" src="assets/branding/logo.svg" width="174" height="40" alt="КалорИИ — дневник питания с ИИ">
  <img class="brand-logo brand-dark" src="assets/branding/logo-dark.svg" width="174" height="40" alt="КалорИИ — дневник питания с ИИ">
+ <button id="browser-link" class="browser-link" hidden onclick="PrivateAccess.showLink()">Веб-версия</button>
 </header>
 <div id="app"></div><div id="sheet"></div><nav class="tabs"><div id="tabs"></div></nav><div id="toast" role="status" aria-live="polite" aria-atomic="true" inert></div>
 <input type="file" id="diary-file" accept="application/json,.json" hidden onchange="previewDiary(this.files[0])">
@@ -269,6 +272,7 @@ function fixVV(){const o=document.querySelector('#sheet .ov'),v=window.visualVie
 if(window.visualViewport){visualViewport.addEventListener('resize',fixVV);visualViewport.addEventListener('scroll',fixVV)}
 function closeSheet(skip){voiceCancel();kbClose();const o=document.querySelector('#sheet .ov'),t=++CS;if(o&&!skip)o.classList.add('out');setTimeout(()=>{if(t==CS){$('#sheet').innerHTML='';unlockBody();telegramBackState()}},o?220:0)}
 function render(){voiceCancel();telegramBackState();
+ $('#browser-link').hidden=!KaloriiTelegram.active||!PrivateAccess.allowed;
  $('#tabs').parentElement.hidden=!PrivateAccess.allowed;
  if(!PrivateAccess.allowed){$('#sheet').innerHTML='';unlockBody();$('#app').innerHTML=PrivateAccess.markup(!!S.profile||Object.keys(S.log).length>0);return}
  $('#tabs').innerHTML=[['today','Сегодня'],['goal','Цель'],['coach','ИИ-тренер'],['stats','Прогресс'],['set','Настройки']].map(([k,n])=>`<button class="${V==k?'on':''}" aria-label="${n}" onclick="go('${k}')"><svg viewBox="0 0 24 24" aria-hidden="true">${IC[k]}</svg></button>`).join('');
@@ -422,6 +426,7 @@ function vSet(){const p=S.profile,n=norm(p),fk=['b','l','d','s'],W=S.rem.wc||{fr
  <section class="card"><div class="mh"><h3>Уведомления о воде</h3>${sw('w')}</div><div class="row"><span>С</span><input type="time" value="${W.from}" aria-label="Начало" onchange="wc('from',this.value)"></div><div class="row"><span>До</span><input type="time" value="${W.to}" aria-label="Конец" onchange="wc('to',this.value)"></div><div class="row"><span>Напоминать каждые</span><select style="width:auto;margin:0" aria-label="Интервал" onchange="wc('ev',+this.value)">${[1,2,3].map(h=>`<option value="${h}" ${W.ev==h?'selected':''}>${h} ч</option>`).join('')}</select></div></section>
  <section class="card"><div class="mh"><h3>Итоги дня</h3></div>${row(REM.find(r=>r[0]=='e'))}<p class="em">${permTxt()}</p>${!KaloriiTelegram.active?'<button class="ghost" onclick="testServerPush()">Проверить серверные пуши</button>':''}<p class="em" id="pt"></p></section>
  ${KaloriiTelegram.active?'<section class="card"><h3>Telegram</h3><p class="em">Используется системная клавиатура телефона. Дневник хранится на этом устройстве, отдельно от версии Safari.</p><button class="ghost" onclick="KaloriiTelegram.addHome()">Добавить иконку на экран</button></section>':''}
+ <section class="card"><h3>Веб-приложение</h3>${KaloriiTelegram.active?'<p class="em">Подключите прежнюю версию в браузере или с иконки на телефоне. После подключения она работает самостоятельно.</p><button class="ghost" onclick="PrivateAccess.showLink()">Подключить браузер</button><button class="ghost" onclick="PrivateAccess.revokeBrowsers()">Отключить все браузеры</button>':'<p class="em">Браузер подключён. Можно пользоваться приложением напрямую. Дневник хранится на этом устройстве.</p><button class="ghost" onclick="PrivateAccess.disconnect()">Отключить этот браузер</button>'}</section>
  <section class="card" ${KaloriiTelegram.active?'hidden':''}><div class="mh"><h3>Встроенная клавиатура</h3><button class="sw ${OWNKB()?'on':''}" role="switch" aria-checked="${OWNKB()}" aria-label="Встроенная клавиатура" onclick="toggleKb()"></button></div><p class="em">Убирает панель со стрелками над клавиатурой iPhone. Выключите, чтобы вернуть системную клавиатуру.</p></section>
  <section class="card"><h3>Данные</h3><p class="em">Дневник хранится на этом устройстве. Автоматическая синхронизация с другими устройствами не подключена.</p>${transferButtons()}<button class="ghost" onclick="restoreDiary()">Вернуть данные до переноса</button><button class="ghost" onclick="if(confirm('Удалить весь дневник и профиль?')){S={profile:null,log:{},water:{},weights:[],custom:null,foods:[],hist:{},goal:null,meas:[],coachMode:'strict',wk:[],wkGoal:3,dc:{},rem:{on:{},t:{},fired:{}},chat:[]};save();render()}">Удалить все данные</button></section>`}
 function wc(k,v){S.rem.wc=S.rem.wc||{from:'09:00',to:'21:00',ev:2};S.rem.wc[k]=v;save()}
@@ -443,7 +448,7 @@ async function testServerPush(){const say=t=>{const o=$('#pt');if(o)o.textConten
   say((r.status==201||r.status==200)?'Сервер отправил пуш (код '+r.status+'). Он придёт за несколько секунд.':'Пуш не отправлен, код '+r.status+(r.detail?': '+r.detail:'')+(r.key?'':' Нет секрета VAPID_KEY в Worker.')+(r.kv?'':' Нет привязки KV (SUBS).'))}
  catch(e){say(e&&e.code=='rl'?'Слишком часто, подождите минуту.':'Ошибка связи с сервером: Worker не обновлён или недоступен.')}}
 function schedSync(){clearTimeout(syncT);syncT=setTimeout(syncPush,800)}
-async function syncPush(){if(KaloriiTelegram.active||!hasAPI()||!('serviceWorker' in navigator)||!('PushManager' in window)||!('Notification' in window)||Notification.permission!='granted')return;
+async function syncPush(){if(!PrivateAccess.allowed||KaloriiTelegram.active||!hasAPI()||!('serviceWorker' in navigator)||!('PushManager' in window)||!('Notification' in window)||Notification.permission!='granted')return;
  const cfg={on:S.rem.on,t:S.rem.t,wc:S.rem.wc||{from:'09:00',to:'21:00',ev:2}},any=Object.values(S.rem.on).some(Boolean),tz=-new Date().getTimezoneOffset(),str=JSON.stringify([cfg,any,tz]);if(str==lastSync)return;
  try{const reg=await navigator.serviceWorker.ready;let sub=await reg.pushManager.getSubscription();
   if(!any){if(sub)await callAPI({mode:'unsync',endpoint:sub.endpoint});PUSH=false;lastSync=str;return}

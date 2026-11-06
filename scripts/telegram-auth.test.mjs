@@ -40,7 +40,7 @@ test('every API mode rejects anonymous calls before contacting Gemini or storage
  const original=globalThis.fetch;let calls=0,reads=0;
  globalThis.fetch=async()=>{calls++;throw Error('must not reach upstream')};
  try{
-  for(const mode of ['access','dish','photo','chat','transcribe','sync','unsync','test','unknown']){
+  for(const mode of ['access','browser_link','browser_revoke','browser_logout','dish','photo','chat','transcribe','sync','unsync','test','unknown']){
    const req=new Request('https://example.test',{method:'POST',headers:{Origin:'https://kolpakov-uz.github.io'},body:JSON.stringify({mode,userId:111,telegramId:111})});
    const r=await worker.fetch(req,{...telegramEnvFixture,SUBS:{get(){reads++;throw Error('must not read storage')}}});
    assert.equal(r.status,401);assert.equal((await r.json()).error,'telegram_auth_required');assert.equal(r.headers.get('Cache-Control'),'no-store');
