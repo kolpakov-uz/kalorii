@@ -22,5 +22,8 @@ const manifest = JSON.parse(read('manifest.webmanifest'));
 for (const { src } of manifest.icons) {
   if (!existsSync(fileURLToPath(new URL(src, root)))) throw new Error(`Missing icon: ${src}`);
 }
+for (const file of ['assets/branding/logo.svg','assets/branding/logo-dark.svg','favicon.ico','favicon.svg','favicon-32.png','apple-touch-icon.png','badge-96.png']) {
+  if (!existsSync(fileURLToPath(new URL(file, root)))) throw new Error(`Missing branding asset: ${file}`);
+}
 if (!html.includes('https://kalorii-ai.crytime04.workers.dev')) throw new Error('Unexpected Worker endpoint');
 console.log('Application JavaScript, service worker, manifest and icons: OK');

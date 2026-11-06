@@ -1,8 +1,13 @@
 <!DOCTYPE html>
 <html lang="ru"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-<link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon-192.png"><meta name="theme-color" content="#1E8E5A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Калории">
-<title>Калории — дневник питания</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<meta name="theme-color" content="#1E8E5A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="КалорИИ">
+<title>КалорИИ — дневник питания с ИИ</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="telegram.js"></script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap">
@@ -14,6 +19,12 @@ html{scroll-padding-top:env(safe-area-inset-top,0px)}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:500 15px/1.4 Manrope,system-ui,-apple-system,"Segoe UI",sans-serif}
 #app{max-width:480px;margin:0 auto;padding:18px 16px 110px}
+.brand-header{max-width:480px;margin:0 auto;padding:20px 16px 0}
+.brand-logo{display:block;width:174px;height:40px}
+.brand-dark{display:none}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .brand-light{display:none}:root:not([data-theme="light"]) .brand-dark{display:block}}
+:root[data-theme="dark"] .brand-light{display:none}:root[data-theme="dark"] .brand-dark{display:block}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
 h1{font-size:28px;font-weight:800;margin:6px 0 2px;letter-spacing:-.02em}h2{font-size:22px;font-weight:800;margin:0 0 6px}h3{font-size:16px;font-weight:700;margin:0}
 .sub{color:var(--mut);margin:0 0 14px}
 .card{background:var(--card);border-radius:20px;padding:16px;margin:12px 0;border:1px solid var(--line)}
@@ -214,11 +225,16 @@ button{transition:transform .12s ease,filter .12s,background .2s,opacity .2s}
 @media(prefers-reduced-motion:reduce){.mic.recording::before,.mic.recording::after{animation:none;opacity:calc(var(--voice-level)*.5);transform:scale(calc(1 + var(--voice-level)*.25))}}
 @media(max-width:360px){.cmp,.send{gap:5px}.cmp #ai,.send #ci{padding-left:11px;padding-right:11px}}
 .cmp #ai,.send #ci{min-height:46px;padding-top:11px;padding-bottom:11px}
-.tg #app{padding-top:calc(18px + var(--tg-app-top,0px));padding-bottom:calc(110px + var(--tg-app-bottom,0px))}
+.tg .brand-header{padding-top:calc(20px + var(--tg-app-top,0px))}
+.tg #app{padding-bottom:calc(110px + var(--tg-app-bottom,0px))}
 .tg .tabs{padding-bottom:calc(8px + var(--tg-app-bottom,0px))}.tg .ov{padding-top:var(--tg-app-top,0px)}.tg .sh{padding-bottom:calc(20px + var(--tg-app-bottom,0px))}
 .tg #toast{top:calc(12px + var(--tg-app-top,0px))}.tg .comp{bottom:calc(62px + var(--tg-app-bottom,0px))}.tg body.kbd .comp{bottom:var(--kb,0px)}
 .access-link{display:block;text-align:center;text-decoration:none;color:var(--ink)}nav.tabs[hidden]{display:none}
 </style></head><body>
+<header class="brand-header">
+ <img class="brand-logo brand-light" src="assets/branding/logo.svg" width="174" height="40" alt="КалорИИ — дневник питания с ИИ">
+ <img class="brand-logo brand-dark" src="assets/branding/logo-dark.svg" width="174" height="40" alt="КалорИИ — дневник питания с ИИ">
+</header>
 <div id="app"></div><div id="sheet"></div><nav class="tabs"><div id="tabs"></div></nav><div id="toast" role="status" aria-live="polite" aria-atomic="true" inert></div>
 <input type="file" id="diary-file" accept="application/json,.json" hidden onchange="previewDiary(this.files[0])">
 <script src="diary-backup.js"></script>
@@ -256,7 +272,7 @@ function render(){voiceCancel();telegramBackState();
  $('#tabs').parentElement.hidden=!PrivateAccess.allowed;
  if(!PrivateAccess.allowed){$('#sheet').innerHTML='';unlockBody();$('#app').innerHTML=PrivateAccess.markup(!!S.profile||Object.keys(S.log).length>0);return}
  $('#tabs').innerHTML=[['today','Сегодня'],['goal','Цель'],['coach','ИИ-тренер'],['stats','Прогресс'],['set','Настройки']].map(([k,n])=>`<button class="${V==k?'on':''}" aria-label="${n}" onclick="go('${k}')"><svg viewBox="0 0 24 24" aria-hidden="true">${IC[k]}</svg></button>`).join('');
- if(!S.profile){$('#app').innerHTML='<h1>Калории</h1><p class="sub">Дневник питания с ИИ-тренером</p>';return openProfile()}
+ if(!S.profile){$('#app').innerHTML='<h1 class="sr-only">КалорИИ</h1><p class="sub">Дневник питания с ИИ-тренером</p>';return openProfile()}
  $('#app').innerHTML={today:vToday,goal:vGoal,coach:vCoach,stats:vStats,set:vSet}[V]();if(V=='coach')scrollTo(0,document.body.scrollHeight)}
 function vToday(){const n=norm(S.profile),t=tot(cur()),left=n.k-t.k,C=2*Math.PI*54,pc=Math.min(1,t.k/n.k),w=S.water[cur()]||0;
  const h=new Date().getHours(),hi=h<5?'Доброй ночи':h<12?'Доброе утро':h<18?'Добрый день':'Добрый вечер';
@@ -433,7 +449,7 @@ async function syncPush(){if(KaloriiTelegram.active||!hasAPI()||!('serviceWorker
   if(!any){if(sub)await callAPI({mode:'unsync',endpoint:sub.endpoint});PUSH=false;lastSync=str;return}
   if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64u(VAPID)});
   await callAPI({mode:'sync',sub:sub.toJSON(),tz,cfg});PUSH=true;lastSync=str}catch(e){}}
-async function notify(t,m,tag){if(KaloriiTelegram.active){toast(m,{title:t,type:'info'});return}try{if('Notification' in window&&Notification.permission=='granted'){const r=SW||(navigator.serviceWorker&&await navigator.serviceWorker.getRegistration());if(r)r.showNotification(t,{body:m,icon:'icon-192.png',badge:'icon-192.png',tag:tag||'kalorii'});else new Notification(t,{body:m})}}catch(e){}}
+async function notify(t,m,tag){if(KaloriiTelegram.active){toast(m,{title:t,type:'info'});return}try{if('Notification' in window&&Notification.permission=='granted'){const r=SW||(navigator.serviceWorker&&await navigator.serviceWorker.getRegistration());if(r)r.showNotification(t,{body:m,icon:'icon-192.png?v=brand1',badge:'badge-96.png',tag:tag||'kalorii'});else new Notification(t,{body:m,icon:'icon-192.png?v=brand1'})}}catch(e){}}
 setInterval(()=>{if(!PrivateAccess.allowed)return;const hm=new Date().toTimeString().slice(0,5),d=today(),mn=x=>+x.slice(0,2)*60+ +x.slice(3,5);REM.forEach(([k,n,t,m])=>{if(S.rem.on[k]&&hm==(S.rem.t[k]||t)&&S.rem.fired[k]!=d){S.rem.fired[k]=d;save();notify(n,m,k)}});
  const w=S.rem.wc||{from:'09:00',to:'21:00',ev:2};if(S.rem.on.w&&hm>=w.from&&hm<=w.to&&(mn(hm)-mn(w.from))%(w.ev*60)==0&&S.rem.fired.w!=d+hm){S.rem.fired.w=d+hm;save();notify('Вода','Выпейте стакан воды','w')}},20000);
 const GT={abs:{t:'Рельефный пресс',m:'waist',u:'см',d:'Талия и оценка жира'},lose:{t:'Похудеть',m:'weight',u:'кг',d:'Вес, среднее за 7 дней'},arm:{t:'Размер бицепса',m:'arm',u:'см',d:'Обхват руки'},fat:{t:'Процент жира',m:'bf',u:'%',d:'Замеры прибором'}},MN={waist:'Талия',weight:'Вес',arm:'Бицепс',bf:'Жир'};

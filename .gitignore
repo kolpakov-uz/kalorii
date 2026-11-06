@@ -6,3 +6,4 @@ node_modules/
 .dev.vars.*
 worker/dist/
 *.log
+output/
