@@ -9,7 +9,7 @@
 <meta name="theme-color" content="#1E8E5A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="КалорИИ">
 <title>КалорИИ — дневник питания с ИИ</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="telegram.js"></script>
+<script src="telegram.js?v=fullscreen1"></script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap">
 <style>
 :root{--bg:#F2F5F1;--card:#fff;--ink:#17231D;--mut:#6B7D74;--line:#E1E8E3;--acc:#1E8E5A;--on:#fff;--p:#3A6FF0;--f:#F2A31B;--c:#E8594F;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -227,6 +227,7 @@ button{transition:transform .12s ease,filter .12s,background .2s,opacity .2s}
 @media(prefers-reduced-motion:reduce){.mic.recording::before,.mic.recording::after{animation:none;opacity:calc(var(--voice-level)*.5);transform:scale(calc(1 + var(--voice-level)*.25))}}
 @media(max-width:360px){.cmp,.send{gap:5px}.cmp #ai,.send #ci{padding-left:11px;padding-right:11px}}
 .cmp #ai,.send #ci{min-height:46px;padding-top:11px;padding-bottom:11px}
+:root.tg{padding-top:0;padding-bottom:0;scroll-padding-top:var(--tg-app-top,0px)}
 .tg .brand-header{padding-top:calc(20px + var(--tg-app-top,0px))}
 .tg #app{padding-bottom:calc(110px + var(--tg-app-bottom,0px))}
 .tg .tabs{padding-bottom:calc(8px + var(--tg-app-bottom,0px))}.tg .ov{padding-top:var(--tg-app-top,0px)}.tg .sh{padding-bottom:calc(20px + var(--tg-app-bottom,0px))}

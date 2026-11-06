@@ -17,10 +17,15 @@ const KaloriiTelegram=(()=>{
  function back(show){if(active&&app.isVersionAtLeast('6.1'))app.BackButton[show?'show':'hide']()}
  function init(onBack){
   if(!active)return;
-  refresh();app.ready();app.expand();
+  refresh();
   app.onEvent('themeChanged',refresh);
-  if(app.isVersionAtLeast('8.0')){app.onEvent('safeAreaChanged',refresh);app.onEvent('contentSafeAreaChanged',refresh)}
+  if(app.isVersionAtLeast('8.0')){
+   for(const event of ['safeAreaChanged','contentSafeAreaChanged','fullscreenChanged','fullscreenFailed'])app.onEvent(event,refresh);
+  }
   if(app.isVersionAtLeast('6.1'))app.BackButton.onClick(onBack);
+  app.ready();app.expand();
+  // Request once per launch; leaving fullscreen must remain the user's choice.
+  if(app.isVersionAtLeast('8.0')&&!app.isFullscreen){try{app.requestFullscreen()}catch{refresh()}}
  }
  function addHome(){if(active&&app.isVersionAtLeast('8.0'))app.checkHomeScreenStatus(status=>{if(status==='unsupported')toast('На этом устройстве Telegram не поддерживает добавление иконки.',{type:'info'});else app.addToHomeScreen()});else toast('Добавление иконки доступно в актуальной версии Telegram.',{type:'info'})}
  return {active,storageKey,init,back,addHome,requestData,userId,botUrl:'https://t.me/caloriies_ai_bot'};
