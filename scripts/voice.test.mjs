@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import {transcriptionBody,transcriptionText} from '../worker/voice.js';
 import worker from '../worker/index.js';
+import {telegramEnvFixture,telegramPayload} from './telegram-fixture.mjs';
 const code=fs.readFileSync(new URL('../voice.js',import.meta.url),'utf8');
 function setup(extra={}){const target={textContent:'Уже набрано',isConnected:true,blur(){},closest(){return{before(){}}}};let stops=0;const context=vm.createContext({console,Blob,DataView,Uint8Array,ArrayBuffer,AbortController,setTimeout,clearTimeout,setInterval,clearInterval,Date,Math,btoa,API:'https://example.test',kbClose(){},kbFlush(){},gr(){},sbtn(){},toast(){},navigator:{mediaDevices:{getUserMedia:async()=>({getTracks:()=>[{stop(){stops++}}]})}},document:{hidden:false,addEventListener(){},querySelectorAll:()=>[],getElementById:id=>id==='ai'?target:{firstChild:{},remove(){} }},window:{MediaRecorder:class{},addEventListener(){}},...extra});vm.runInContext(code,context);return{c:context,target,run:s=>vm.runInContext(s,context),stops:()=>stops}}
 const buffer={length:8000,numberOfChannels:1,getChannelData:()=>new Float32Array(8000).fill(.2)};
@@ -14,7 +15,7 @@ test('cancelled microphone permission request releases stream when it eventually
 test('transcript appends to current editable draft and never submits it',async()=>{let requests=0;const x=setup({fetch:async(_url,opts)=>{requests++;const data=JSON.parse(opts.body);assert.equal(data.mode,'transcribe');return{ok:true,json:async()=>({text:'Съел плов.'})}}});x.c.stream={getTracks:()=>[{stop(){}}]};x.run("voiceEncode=async()=> 'wav'; VOICE={id:'ai',target:document.getElementById('ai'),started:Date.now()-1000,chunks:[new Blob(['audio'])],recorder:{mimeType:'audio/webm'},stream}");await x.run('voiceFinish(VOICE)');assert.equal(x.target.textContent,'Уже набрано Съел плов.');assert.equal(requests,1);assert.equal(x.run('VOICE'),null)});
 test('cancelling in-flight transcription never inserts late text',async()=>{let resolve;const x=setup({fetch:()=>new Promise(r=>resolve=r)});x.c.stream={getTracks:()=>[{stop(){}}]};x.run("voiceEncode=async()=> 'wav'; VOICE={id:'ai',target:document.getElementById('ai'),started:Date.now()-1000,chunks:[new Blob(['audio'])],recorder:{mimeType:'audio/webm'},stream}");const finish=x.run('voiceFinish(VOICE)');await new Promise(r=>setTimeout(r,0));x.run('voiceCancel()');resolve({ok:true,json:async()=>({text:'Запоздалый ответ'})});await finish;assert.equal(x.target.textContent,'Уже набрано')});
 test('denied microphone leaves original draft and resets controls',async()=>{const x=setup({navigator:{mediaDevices:{getUserMedia:async()=>{throw Object.assign(Error(),{name:'NotAllowedError'})}}}});await x.run("voiceToggle('ai')");assert.equal(x.run('VOICE'),null);assert.equal(x.target.textContent,'Уже набрано')});
-test('worker rejects invalid voice without calling Gemini and preserves CORS',async()=>{const response=await worker.fetch(new Request('https://example.test',{method:'POST',headers:{Origin:'https://kolpakov-uz.github.io'},body:JSON.stringify({mode:'transcribe',audio:'invalid'})}),{});assert.equal(response.status,400);assert.equal((await response.json()).error,'bad_audio');assert.equal(response.headers.get('Access-Control-Allow-Origin'),'https://kolpakov-uz.github.io')});
+test('worker rejects invalid voice without calling Gemini and preserves CORS',async()=>{const response=await worker.fetch(new Request('https://example.test',{method:'POST',headers:{Origin:'https://kolpakov-uz.github.io'},body:JSON.stringify(telegramPayload({mode:'transcribe',audio:'invalid'}))}),telegramEnvFixture);assert.equal(response.status,400);assert.equal((await response.json()).error,'bad_audio');assert.equal(response.headers.get('Access-Control-Allow-Origin'),'https://kolpakov-uz.github.io')});
 
 test('long audio is segmented without truncation, overlap or loss of samples',()=>{
  const x=setup(),samples=Float32Array.from({length:16000*73},(_,i)=>((i%100)-50)/100);
@@ -109,17 +110,17 @@ test('cancelling an automatic retry never inserts late text or retains audio',as
 test('worker reports upstream voice failures with CORS and without leaking error messages',async()=>{
  const original=globalThis.fetch,x=setup();x.c.buf=buffer;
  const audio=Buffer.from(x.run('voiceWav(buf)')).toString('base64');
- const request=()=>new Request('https://example.test',{method:'POST',headers:{Origin:'https://kolpakov-uz.github.io','CF-Connecting-IP':'voice-regression-test'},body:JSON.stringify({mode:'transcribe',audio})});
+ const request=()=>new Request('https://example.test',{method:'POST',headers:{Origin:'https://kolpakov-uz.github.io','CF-Connecting-IP':'voice-regression-test'},body:JSON.stringify(telegramPayload({mode:'transcribe',audio}))});
  try{
   for(const [status,error] of [[400,'audio_rejected'],[403,'ai_access'],[503,'ai']]){
    globalThis.fetch=async()=>new Response(JSON.stringify({error:{message:'private upstream detail'}}),{status});
-   const response=await worker.fetch(request(),{}),data=await response.json();
+   const response=await worker.fetch(request(),telegramEnvFixture),data=await response.json();
    assert.equal(response.status,502);assert.deepEqual(data,{error,upstreamStatus:status});
    assert.equal(response.headers.get('Access-Control-Allow-Origin'),'https://kolpakov-uz.github.io');
   }
   globalThis.fetch=async()=>{throw TypeError('unreachable')};
-  const offline=await worker.fetch(request(),{});assert.equal(offline.status,503);assert.deepEqual(await offline.json(),{error:'unavailable'});
+  const offline=await worker.fetch(request(),telegramEnvFixture);assert.equal(offline.status,503);assert.deepEqual(await offline.json(),{error:'unavailable'});
   globalThis.fetch=async()=>new Response('invalid JSON');
-  const malformed=await worker.fetch(request(),{});assert.equal(malformed.status,502);assert.deepEqual(await malformed.json(),{error:'transcript'});
+  const malformed=await worker.fetch(request(),telegramEnvFixture);assert.equal(malformed.status,502);assert.deepEqual(await malformed.json(),{error:'transcript'});
  }finally{globalThis.fetch=original}
 });

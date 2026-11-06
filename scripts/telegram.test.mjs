@@ -12,3 +12,5 @@ test('Telegram updates theme and safe areas, expands and wires native back contr
  app.colorScheme='light';app.safeAreaInset.bottom=0;events.themeChanged();assert.equal(x.root.dataset.theme,'light');assert.equal(x.properties['--tg-app-bottom'],'0px');x.tg.back(true);x.tg.back(false);events.back();assert.equal(back,1);assert.ok(calls.includes('show'));assert.ok(calls.includes('hide'));
 });
 test('unsupported shortcut shows a message instead of attempting installation',()=>{let installed=0;const x=setup({initData:'fixture',isVersionAtLeast:()=>true,checkHomeScreenStatus:fn=>fn('unsupported'),addToHomeScreen:()=>installed++});x.tg.addHome();assert.equal(installed,0);assert.equal(x.calls.length,1)});
+
+test('API payload includes native proof, never a client-selected substitute',()=>{const x=setup({initData:'signed-launch',initDataUnsafe:{user:{id:111}}});const data=x.tg.requestData({mode:'dish',telegramInitData:'forged'});assert.equal(data.telegramInitData,'signed-launch');assert.equal(x.tg.userId(),111);assert.equal(setup().tg.userId(),null)});

@@ -73,7 +73,7 @@ async function voiceRequest(s,audio){
   s.controller=new AbortController();s.timeout=setTimeout(()=>s.controller.abort(),45000);
   try{
    s.lastRequest=Date.now();
-   const response=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'transcribe',audio}),signal:s.controller.signal});
+   const response=typeof PrivateAccess!=='undefined'?await PrivateAccess.request({mode:'transcribe',audio},{signal:s.controller.signal}):await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'transcribe',audio}),signal:s.controller.signal});
    const data=await response.json().catch(()=>({}));
    if(!response.ok){const code=response.status==429?'rate':data.error||'server';const transient=response.status>=500&&!['audio_rejected','ai_access'].includes(code);throw Object.assign(Error(code),{transient})}
    if(typeof data.text!=='string')throw Object.assign(Error('transcript'),{transient:true});

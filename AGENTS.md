@@ -15,7 +15,7 @@
 3. Выполни `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/publish.ps1 -CheckOnly` и проверки, соответствующие изменённому поведению. Проверка синтаксиса не заменяет проверку поведения интерфейса.
 4. Закоммить предназначенные для выпуска изменения. Подпись уже настроена локально на профиль GitHub пользователя.
 5. Выполни `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/publish.ps1`. Скрипт сначала проверяет и публикует Worker, затем отправляет `main` в GitHub для публикации Pages.
-6. Убедись, что сборка Pages завершилась и опубликован нужный коммит; проверь приложение и затронутые операции API. Обычный GET к Worker ожидаемо возвращает 403. Для проверки без обращения к Gemini можно использовать OPTIONS с Origin `https://kolpakov-uz.github.io` и POST с неизвестным mode: ожидаются CORS и 400 `bad`.
+6. Убедись, что сборка Pages завершилась и опубликован нужный коммит; проверь приложение и затронутые операции API. Обычный GET к Worker ожидаемо возвращает 403. Для проверки без обращения к Gemini используйте OPTIONS с Origin `https://kolpakov-uz.github.io` (CORS), неподписанный POST (401 `telegram_auth_required`) и подписанный `mode: access` разрешённого аккаунта (200). Все POST требуют валидного Telegram-входа и ID из TELEGRAM_ALLOWED_IDS; не обходите эту проверку ради старых тестов.
 
 Авторизация GitHub сохранена в Git Credential Manager, Cloudflare — через Wrangler OAuth в зашифрованном файле с ключом в Windows Credential Manager. Доступ зависит от пользователя Windows. В песочнице могут потребоваться разрешения на сеть и доступ к хранилищу учётных данных. При ошибке Git `dubious ownership` используй разовое `git -c safe.directory=<абсолютный путь репозитория>`; не меняй глобальную конфигурацию без необходимости.
 

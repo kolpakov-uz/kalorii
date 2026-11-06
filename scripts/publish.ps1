@@ -19,7 +19,7 @@ function Read-Git {
 Push-Location $repoRoot
 try {
     Invoke-Checked -Command node -Arguments @('scripts/check.mjs')
-    Invoke-Checked -Command node -Arguments @('--test', 'scripts/voice.test.mjs', 'scripts/notifications.test.mjs', 'scripts/telegram.test.mjs', 'scripts/diary-backup.test.mjs')
+    Invoke-Checked -Command node -Arguments @('--test', 'scripts/voice.test.mjs', 'scripts/notifications.test.mjs', 'scripts/telegram.test.mjs', 'scripts/diary-backup.test.mjs', 'scripts/telegram-auth.test.mjs', 'scripts/telegram-access.test.mjs')
     Invoke-Checked -Command npm.cmd -Arguments @('--prefix', 'worker', 'run', 'check')
     Invoke-Checked -Command npm.cmd -Arguments @('--prefix', 'worker', 'run', 'dry-run')
     if ($CheckOnly) { return }

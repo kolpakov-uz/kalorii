@@ -1,6 +1,8 @@
 // Telegram data selects local UI/storage only; it is not server authentication.
 const KaloriiTelegram=(()=>{
  const app=window.Telegram?.WebApp,active=!!app?.initData;
+ function requestData(body){return {...body,telegramInitData:active?app.initData:''}}
+ function userId(){const id=app?.initDataUnsafe?.user?.id;return active&&Number.isSafeInteger(id)&&id>0?id:null}
  function storageKey(base){const id=app?.initDataUnsafe?.user?.id;return active?base+'-telegram-'+(Number.isSafeInteger(id)&&id>0?id:'local'):base}
  function refresh(){
   if(!active)return;
@@ -21,5 +23,5 @@ const KaloriiTelegram=(()=>{
   if(app.isVersionAtLeast('6.1'))app.BackButton.onClick(onBack);
  }
  function addHome(){if(active&&app.isVersionAtLeast('8.0'))app.checkHomeScreenStatus(status=>{if(status==='unsupported')toast('На этом устройстве Telegram не поддерживает добавление иконки.',{type:'info'});else app.addToHomeScreen()});else toast('Добавление иконки доступно в актуальной версии Telegram.',{type:'info'})}
- return {active,storageKey,init,back,addHome,botUrl:'https://t.me/caloriies_ai_bot'};
+ return {active,storageKey,init,back,addHome,requestData,userId,botUrl:'https://t.me/caloriies_ai_bot'};
 })();

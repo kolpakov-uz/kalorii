@@ -17,7 +17,7 @@ for (const [, attributes, code] of read('keyboard-test.html').matchAll(/<script\
 new Script(read('sw.js'), { filename: 'sw.js' });
 new Script(read('voice.js'), { filename: 'voice.js' });
 new Script(read('notifications.js'), { filename: 'notifications.js' });
-for (const file of ['telegram.js','diary-backup.js','diary-transfer.js']) new Script(read(file), {filename: file});
+for (const file of ['telegram.js','telegram-access.js','diary-backup.js','diary-transfer.js']) new Script(read(file), {filename: file});
 const manifest = JSON.parse(read('manifest.webmanifest'));
 for (const { src } of manifest.icons) {
   if (!existsSync(fileURLToPath(new URL(src, root)))) throw new Error(`Missing icon: ${src}`);
