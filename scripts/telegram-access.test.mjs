@@ -23,6 +23,11 @@ test('API authorization revocation closes an already unlocked UI',async()=>{
  const x=setup(async()=>new Response('{"error":"telegram_auth_expired"}',{status:401}));x.access.state='allowed';
  const r=await x.access.request({mode:'dish',text:'Творог'});assert.equal(r.status,401);assert.equal(x.access.allowed,false);assert.equal(x.access.error,'telegram_auth_expired');assert.equal(x.renders(),1);
 });
+
+test('a forbidden resource does not log a valid account out of its diary',async()=>{
+ const x=setup(async()=>new Response('{"error":"forbidden"}',{status:403}));x.access.state='allowed';
+ await x.access.request({mode:'sync'});assert.equal(x.access.allowed,true);assert.equal(x.renders(),0);
+});
 test('locked UI still offers export of local diary without disclosing content in the gate',()=>{
  const x=setup();x.access.state='closed';x.access.error='telegram_not_allowed';
  assert.match(x.access.markup(true),/Сохранить дневник в файл/);assert.doesNotMatch(x.access.markup(false),/Сохранить дневник в файл/);assert.match(x.access.markup(false),/111/);

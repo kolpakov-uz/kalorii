@@ -72,7 +72,11 @@ export default{async fetch(req,env){
   if(b.mode=='unsync'){const id=await hid(String(b.endpoint||''));if(subs[id]&&subs[id].ownerId!==access.userId)return j({error:'forbidden'},403);delete subs[id]}
   else{const s=b.sub;if(!s||typeof s.endpoint!='string'||!/^https:\/\/([a-z0-9-]+\.)*(googleapis\.com|push\.apple\.com|mozilla\.com|mozaws\.net|windows\.com)\//.test(s.endpoint)||!s.keys||!s.keys.p256dh||!s.keys.auth||JSON.stringify(b.cfg||{}).length>2000)return j({error:'bad'},400);
    if(Object.keys(subs).length>500)return j({error:'full'},507);
-   const id=await hid(s.endpoint);if(subs[id]&&subs[id].ownerId!==access.userId)return j({error:'forbidden'},403);
+   const id=await hid(s.endpoint),saved=subs[id];
+   // The original web app already owns these push keys. Upgrade its legacy
+   // unowned subscription only when the complete subscription proof matches.
+   const legacy=saved&&saved.ownerId==null&&saved.s?.endpoint===s.endpoint&&saved.s?.keys?.p256dh===s.keys.p256dh&&saved.s?.keys?.auth===s.keys.auth;
+   if(saved&&saved.ownerId!==access.userId&&!legacy)return j({error:'forbidden'},403);
    subs[id]={ownerId:access.userId,s:{endpoint:s.endpoint,keys:{p256dh:String(s.keys.p256dh),auth:String(s.keys.auth)}},tz:Math.max(-720,Math.min(840,Math.round(+b.tz||0))),cfg:b.cfg||{}}}
   await env.SUBS.put('subs',JSON.stringify(subs));return j({text:'ok'})}
  let body;

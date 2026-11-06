@@ -6,7 +6,7 @@ const PrivateAccess={
  async request(body,options={}){
   const payload=KaloriiTelegram.requestData(body),token=this.browserToken();delete payload.browserToken;if(token)payload.browserToken=token;
   const response=await fetch(API,{...options,method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-  if((response.status===401||response.status===403)&&this.allowed){const data=await response.clone().json().catch(()=>({}));this.state='closed';this.error=data.error||'telegram_auth_required';render()}
+  if((response.status===401||response.status===403)&&this.allowed){const data=await response.clone().json().catch(()=>({}));if(response.status===401||data.error==='telegram_not_allowed'){this.state='closed';this.error=data.error||'telegram_auth_required';render()}}
   return response;
  },
  async check(){

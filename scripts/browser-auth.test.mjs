@@ -81,3 +81,17 @@ test('revoke all follows KV pagination and only removes matching browser session
  assert.deepEqual(deleted,['browser:111:first','browser:111:second']);
  assert.deepEqual(seen,[{prefix:'browser:111:'},{prefix:'browser:111:',cursor:'page2'}]);
 });
+
+test('old web push subscriptions can be reclaimed only with the matching endpoint and encryption keys',async()=>{
+ const kv=storage(),env={...telegramEnvFixture,SUBS:kv};
+ const {browserToken}=await issueBrowserAccess(222,env);
+ const sub={endpoint:'https://push.apple.com/old-web-fixture',keys:{p256dh:'original-public-key',auth:'original-auth'}};
+ const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(sub.endpoint));
+ const id=[...new Uint8Array(digest)].slice(0,12).map(n=>n.toString(16).padStart(2,'0')).join('');
+ kv.values.set('subs',JSON.stringify({[id]:{s:sub,tz:300,cfg:{}}}));
+ const forged={...sub,keys:{...sub.keys,auth:'wrong'}};
+ assert.equal((await worker.fetch(request({mode:'sync',browserToken,sub:forged}),env)).status,403);
+ assert.equal(JSON.parse(kv.values.get('subs'))[id].ownerId,undefined);
+ assert.equal((await worker.fetch(request({mode:'sync',browserToken,sub}),env)).status,200);
+ assert.equal(JSON.parse(kv.values.get('subs'))[id].ownerId,222);
+});
