@@ -26,18 +26,38 @@ function goalPlanCard(plan){
 function goalPrev(type){const start=parseFloat($('#g_s').value),target=parseFloat($('#g_t').value),out=$('#gp');if(!out)return;out.textContent=start>0&&target>0&&start!==target?'Изменение цели: '+f1(Math.abs(target-start))+' '+GT[type].u:''}
 function goalCtx0(){
  const g=S.goal;if(!g)return ` Режим тренера: ${S.coachMode}.`;
- const st=gStats(),plan=st.plan,food=plan.nutrition,training=plan.training;
- return ` Цель-результат: ${GT[g.type].t}, старт ${g.start}, цель ${g.target}, по замерам ${f1(st.cur)} ${GT[g.type].u}. Достижение цели ${f1(st.P)}%, считается только по замерам и может уменьшаться. ${goalStamp(st)}.${st.stale?' Данные замеров устарели.':''} Изменение по замерам: ${st.wk===null?'нет сравнения':f1(st.wk)+' п.п. '+goalChangePeriod(st)}. Выполнение плана за ${plan.start}–${plan.end}: ${plan.percent===null?'недостаточно данных питания':f1(plan.percent)+'%'}. Питание: ${food.good} из ${food.filled} заполненных дней в пределах плана; завершённых дней ${food.eligible}. Тренировки: ${training.count} отдельных записей, ${training.minutes} из ${training.targetMinutes} минут. Не трактуй отсутствие записей как подтверждённое нарушение; не добавляй баллы привычек к прогрессу замеров и не обещай точную дату достижения цели. Режим тренера: ${{soft:'мягкий',strict:'строгий',hard:'жёсткий'}[S.coachMode]}.`;
+ const st=gStats(),plan=st.plan,food=plan.nutrition,training=plan.training,step=coachStep(st);
+ const scenario=step.kind==='workout'?` Мотивационный расчёт на сегодня: одна плановая тренировка ${step.minutes} мин изменила бы выполнение плана с ${f1(step.before)}% до ${f1(step.after)}%, если остальные записи не изменятся. Это не прогноз изменений тела; запись допустима только после выполненного занятия.`:'';
+ return ` Цель-результат: ${GT[g.type].t}, старт ${g.start}, цель ${g.target}, по замерам ${f1(st.cur)} ${GT[g.type].u}. Достижение цели ${f1(st.P)}%, считается только по замерам и может уменьшаться. ${goalStamp(st)}.${st.stale?' Данные замеров устарели.':''}${st.fast?' Отмечен быстрый темп снижения веса: не предлагай ускорять его.':''} Изменение по замерам: ${st.wk===null?'нет сравнения':f1(st.wk)+' п.п. '+goalChangePeriod(st)}. Выполнение плана за ${plan.start}–${plan.end}: ${plan.percent===null?'недостаточно данных питания':f1(plan.percent)+'%'}. Питание: ${food.good} из ${food.filled} заполненных дней в пределах плана; завершённых дней ${food.eligible}. Тренировки: ${training.count} отдельных записей, ${training.minutes} из ${training.targetMinutes} минут.${scenario} Не трактуй отсутствие записей как подтверждённое нарушение; не добавляй баллы привычек к прогрессу замеров и не обещай точную дату достижения цели. Не выдумывай, какой процент цели по телу был бы достигнут при идеальном соблюдении плана, и не приписывай изменение замеров конкретному нарушению без данных. Мотивируй конкретным посильным следующим шагом без наказания едой или тренировками. Режим тренера: ${{soft:'мягкий',strict:'строгий',hard:'жёсткий'}[S.coachMode]}.`;
 }
 function coachLine(st){
  const tone=(soft,strict,hard)=>S.coachMode==='soft'?soft:S.coachMode==='hard'?hard:strict;
- if(st.fast)return 'Вы теряете вес слишком быстро. Не урезайте еду: добавьте белок, сон и отдых. Если плохо себя чувствуете, обратитесь к врачу.';
- if(st.stale)return tone('Добавьте свежий замер, чтобы увидеть текущий результат.','Нужен свежий замер. Пока показан результат по последним данным.','Обновите замер: для оценки текущего результата нужны свежие данные.');
- if(st.P>=100)return 'Цель по замерам достигнута. Продолжайте наблюдать за результатом.';
- if(st.wk!==null&&st.wk<0)return 'По замерам прогресс снизился на '+f1(Math.abs(st.wk))+' п.п. '+goalChangePeriod(st)+'. Проверьте замер в тех же условиях и посмотрите записи питания и тренировок.';
- if(st.wk!==null&&st.wk>0)return 'По замерам вы продвинулись на '+f1(st.wk)+' п.п. '+goalChangePeriod(st)+'. Продолжайте отслеживать результат в одинаковых условиях.';
- if(!st.plan.nutrition.filled)return 'Добавьте записи питания: без них оценка выполнения плана остаётся неполной.';
- return 'Отслеживайте замеры и выполнение плана отдельно. Изменение замеров покажет результат, а дневник поможет понять текущий режим.';
+ if(st.fast)return 'Темп снижения веса отмечен как быстрый. Не пытайтесь ускорять его ограничением еды или дополнительными тренировками. Проверьте замеры; при плохом самочувствии обратитесь к врачу.';
+ if(st.stale)return tone('Начнём со свежего замера. Он поможет увидеть, где вы сейчас, и выбрать следующий шаг.','Обновите замер: пока результат показан по последним данным. Отсутствие замера не означает откат.','Первый шаг — свежий замер. Без него нельзя оценить текущий результат.');
+ if(st.P>=100)return tone('Вы достигли цели по замерам! Теперь ценен устойчивый результат: продолжайте наблюдать за ним.','Цель по замерам достигнута. Сохраняйте регулярность и наблюдайте за результатом.','Цель достигнута. Следующая задача — сохранить результат, а не наращивать нагрузку ради процентов.');
+ const fact='По замерам сейчас '+f1(st.P)+'% пути к цели. ';
+ if(st.wk!==null&&st.wk<0)return fact+'Изменение '+goalChangePeriod(st)+': −'+f1(Math.abs(st.wk))+' п.п. '+tone('Один откат не отменяет ваших усилий. Проверьте замер в тех же условиях и вернитесь к посильному шагу.','Проверьте замер в тех же условиях. Один замер не объясняет причину изменения — оцените записи и вернитесь к регулярности.','Откат есть. Проверьте замер и действуйте по плану: следующий последовательный шаг полезнее попытки догнать всё за день.');
+ if(st.wk!==null&&st.wk>0)return fact+'Изменение '+goalChangePeriod(st)+': +'+f1(st.wk)+' п.п. '+tone('Это движение к цели. Поддержите его следующим небольшим шагом.','Движение к цели есть. Сохраняйте регулярность питания и тренировок.','Результат есть. Продолжайте выполнять план последовательно, без случайных рывков.');
+ return fact+(st.wk===0?'Замеры пока без изменений. ':'')+tone('Не обязательно менять всё сразу. Выберите один посильный шаг на сегодня.','Сосредоточьтесь на следующем действии по плану. Результат проверим по новым замерам.','Действуйте последовательно. Один выполненный шаг полезнее обещания начать идеально завтра.');
+}
+function coachStep(st){
+ if(st.fast)return {kind:'rest'};
+ if(st.stale)return {kind:'measure'};
+ if(st.P>=100)return {kind:'keep'};
+ if(!st.plan.nutrition.filled)return {kind:'diary'};
+ const scenario=GoalProgress.nextWorkout(st.plan);
+ if(scenario)return {kind:'workout',...scenario};
+ if(st.plan.training.minutes<st.plan.training.targetMinutes)return {kind:'training'};
+ return {kind:st.plan.nutrition.good===st.plan.nutrition.filled?'keep':'nutrition'};
+}
+function coachCard(st){
+ const step=coachStep(st),scenario=step.kind==='workout';
+ const actions={measure:['Записать замер','openMeas()'],diary:['Записать питание','openAdd()'],nutrition:['Записать питание','openAdd()'],workout:['Записать тренировку','openWorkout()'],training:['Записать тренировку','openWorkout()']},action=actions[step.kind];
+ const hint={diary:'Начните с записи еды за сегодня. Пока нет заполненных завершённых дней, оценка плана остаётся неполной.',nutrition:'План тренировок выполнен. Следующий шаг — заполнить питание за сегодня и сверить дневной итог со своим планом.',training:'Продолжайте занятия в рамках своего плана и записывайте их после выполнения.',keep:st.P>=100?'Поддерживайте привычный режим и продолжайте записывать замеры.':'По заполненным дням план выполнен. Сохраняйте этот ритм; новые замеры покажут результат.'}[step.kind];
+ return `<section class="card goal-coach" aria-label="Поддержка тренера"><h3>Тренер</h3><div class="pills" style="margin-top:10px">${[['soft','Мягкий'],['strict','Строгий'],['hard','Жёсткий']].map(([key,name])=>`<button class="${S.coachMode===key?'on':''}" aria-pressed="${S.coachMode===key}" onclick="setMode('${key}')">${name}</button>`).join('')}</div><p class="cl">${coachLine(st)}</p>
+ ${scenario?`<div class="coach-scenario"><p class="em">Одна плановая тренировка · ${step.minutes} мин</p><div class="coach-comparison" aria-label="Выполнение плана: сейчас ${f1(step.before)}%, с тренировкой ${f1(step.after)}%"><div><small>Сейчас</small><b>${f1(step.before)}%</b></div><span aria-hidden="true">→</span><div><small>С тренировкой</small><b>${f1(step.after)}%</b></div></div><p class="em">Расчёт выполнения плана на сегодня при тех же записях питания. Изменения тела покажут новые замеры.</p></div>`:hint?`<p class="em coach-hint">${hint}</p>`:''}
+ ${action?`<button class="pri coach-action" onclick="${action[1]}">${action[0]}</button>${scenario?'<p class="em coach-note">Запишите занятие после его выполнения.</p>':''}`:''}
+ ${step.kind!=='rest'?'<aside class="coach-story" aria-label="Реальная история"><b>Маленькие шаги работают</b><p>Шэрон Хейтер начала программу Couch to 5K. По её рассказу NHS, со временем она смогла бегать 30 минут, хотя раньше не выдерживала и минуты.</p><a href="https://www.england.nhs.uk/diabetes/case-studies/sharons-story/" target="_blank" rel="noopener noreferrer">История Шэрон · NHS ↗</a><small>Личный опыт, у каждого свой темп.</small></aside>':''}</section>`;
 }
 function chartSvg(st,g){
  const x0=18,x1=332,span=Math.max(1,dd(g.startDate,today())),X=day=>x0+(x1-x0)*dd(g.startDate,day)/span;
@@ -61,9 +81,9 @@ function vGoal(){
  <p class="em goal-stamp">${goalStamp(st)}${g.m==='weight'&&st.samples>1?'. Среднее по '+st.samples+' замерам за 7 дней.':''}</p><button class="pri" onclick="openMeas()">Записать замер</button>
  <details class="how"><summary>Как считается достижение</summary><p>Процент показывает изменение выбранного замера от старта к цели: при движении назад он уменьшается. Для веса используется среднее доступных замеров за 7 дней, для остальных показателей — последний замер. Питание и тренировки показаны отдельно в выполнении плана. Старые замеры не считаются свежими, а отсутствие записи не означает подтверждённый откат.</p></details></section>
  ${goalPlanCard(st.plan)}
+ ${coachCard(st)}
  ${st.fast?'<section class="card wr"><b>Темп снижения веса слишком высокий</b><p class="em">Не урезайте калории дальше. Если чувствуете слабость или головокружение, обратитесь к врачу.</p></section>':''}
  <section class="card"><h3>${MN[g.m]}: история замеров</h3>${chartSvg(st,g)}<p class="em">Линия — записанные замеры. Пунктир — целевое значение.</p></section>
  ${workCard()}
- <section class="card"><h3>Тренер</h3><div class="pills" style="margin-top:10px">${[['soft','Мягкий'],['strict','Строгий'],['hard','Жёсткий']].map(([key,name])=>`<button class="${S.coachMode===key?'on':''}" onclick="setMode('${key}')">${name}</button>`).join('')}</div><p class="cl">${coachLine(st)}</p></section>
  <button class="ghost" onclick="openGoalEdit()">Изменить старт и цель</button><button class="ghost" onclick="resetGoal()">Выбрать другую цель</button><p class="em">Процент относится к выбранному замеру и зависит от точности измерений.</p>`;
 }

@@ -49,5 +49,11 @@ const GoalProgress=(()=>{
   const minutes=workouts.reduce((sum,workout)=>sum+workout.m,0),targetMinutes=weeklyCount*sessionMinutes*2,trainingRatio=clamp(minutes/targetMinutes),foodRatio=filled?good/filled:null;
   return{start,end,foodEnd,todayPending:end===today&&hour<21,percent:foodRatio===null?null:round((foodRatio+trainingRatio)*50),nutrition:{eligible,filled,good,percent:foodRatio===null?null:round(foodRatio*100)},training:{count:workouts.length,minutes,targetMinutes,weeklyCount,sessionMinutes,percent:round(trainingRatio*100)}};
  }
- return{measure,plan};
+ function nextWorkout(plan){
+  const food=plan.nutrition,training=plan.training;
+  if(!food.filled||training.minutes>=training.targetMinutes)return null;
+  const minutes=training.sessionMinutes,after=round((food.good/food.filled+clamp((training.minutes+minutes)/training.targetMinutes))*50);
+  return after>plan.percent?{minutes,before:plan.percent,after}:null;
+ }
+ return{measure,plan,nextWorkout};
 })();
