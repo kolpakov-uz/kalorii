@@ -69,43 +69,45 @@ test('selected-day counts refresh independently and a midnight change does not m
 
 function progressSetup(){
  const x=setup({profile:{sex:'m',a:30,h:180,w:80,act:1.2,goal:'keep'},goal:{type:'abs',m:'waist',start:90,target:89,startDate:'2026-11-07'},wk:[],wkGoal:3,log:{},water:{},weights:[],meas:[]});
- const begin=html.indexOf('const GT='),finish=html.indexOf('\nfunction lastReasons',begin);
+ const begin=html.indexOf('const GT='),finish=html.indexOf('\nfunction goalErr',begin);
  assert.ok(begin>=0&&finish>begin);
  x.context.norm=()=>({k:2000,p:100,f:60});
  x.context.items=d=>x.context.S.log[d]||[];
  x.context.tot=d=>x.context.items(d).reduce((s,v)=>({k:s.k+v.k,p:s.p+v.p,f:s.f+v.f}),{k:0,p:0,f:0});
  vm.runInContext(html.slice(begin,finish),x.context);
+ vm.runInContext(fs.readFileSync(new URL('../goal-progress.js',import.meta.url),'utf8'),x.context);
+ vm.runInContext(fs.readFileSync(new URL('../goal-ui.js',import.meta.url),'utf8'),x.context);
  return x;
 }
-test('two separately saved workouts on the same day each increase goal progress immediately',()=>{
+test('two workouts update recent plan minutes separately without changing measurement progress',()=>{
  const x=progressSetup();assert.equal(x.run('gStats().P'),0);
- x.select(75);x.run("wkType('abs');saveWorkout()");const first=x.run('gStats().P');assert.ok(first>0);assert.equal(x.run('gStats().workouts.count'),1);
- x.run("openWorkout();wkType('cardio')");x.select(30);x.run('saveWorkout()');const second=x.run('gStats().P');assert.ok(second>first);assert.equal(x.run('gStats().workouts.count'),2);
- assert.equal(x.stored.wk.length,2);assert.notEqual(x.stored.wk[0].id,x.stored.wk[1].id);assert.deepEqual(x.stored.wk.map(w=>w.m),[75,30]);assert.match(x.run('workCard()'),/За весь срок цели: 2 из 6 тренировок/);assert.match(x.run('workCard()'),/Записать ещё тренировку/);
- x.run('delWk(S.wk[1].id)');assert.equal(x.run('gStats().P'),first);assert.equal(x.run('gStats().workouts.count'),1);
+ x.select(75);x.run("wkType('abs');saveWorkout()");assert.equal(x.run('gStats().plan.training.count'),1);assert.equal(x.run('gStats().plan.training.minutes'),75);
+ x.run("openWorkout();wkType('cardio')");x.select(30);x.run('saveWorkout()');assert.equal(x.run('gStats().P'),0);assert.equal(x.run('gStats().plan.training.count'),2);assert.equal(x.run('gStats().plan.training.minutes'),105);
+ assert.equal(x.stored.wk.length,2);assert.notEqual(x.stored.wk[0].id,x.stored.wk[1].id);assert.deepEqual(x.stored.wk.map(w=>w.m),[75,30]);assert.match(x.run('workCard()'),/Записать ещё тренировку/);assert.doesNotMatch(x.run('workCard()'),/вклад/);
+ x.run('delWk(S.wk[1].id)');assert.equal(x.run('gStats().P'),0);assert.equal(x.run('gStats().plan.training.count'),1);assert.equal(x.run('gStats().plan.training.minutes'),75);
 });
-test('training credit excludes other dates, supports historical views and caps at the goal plan',()=>{
- const x=progressSetup();x.context.S.wk=[{id:'before',d:'2026-11-06',t:['str'],m:45},{id:'later',d:'2026-11-08',t:['str'],m:45}];assert.equal(x.run('gStats().P'),0);
+test('recent training respects the rolling window and cannot award measurement progress',()=>{
+ const x=progressSetup();x.context.S.wk=[{id:'before',d:'2026-10-24',t:['str'],m:45},{id:'later',d:'2026-11-08',t:['str'],m:45}];assert.equal(x.run('gStats().plan.training.count'),0);
  for(let i=0;i<8;i++)x.context.S.wk.push({id:'now'+i,d:'2026-11-07',t:['str'],m:45});
- assert.equal(x.run('gStats().workouts.count'),8);assert.equal(x.run('gStats().workouts.planned'),6);assert.equal(x.run('gStats().P'),5);assert.equal(x.run("pAt(S.goal,'2026-11-06')"),0);
+ assert.equal(x.run('gStats().plan.training.count'),8);assert.equal(x.run('gStats().plan.training.percent'),100);assert.equal(x.run('gStats().P'),0);
  x.context.S.meas.push({d:'2026-11-07',waist:89});assert.equal(x.run('gStats().P'),100);
 });
-test('today food waits until 21:00 while both workouts count before and after that time',()=>{
+test('today food waits until 21:00 while workouts immediately update the plan',()=>{
  const x=progressSetup();x.context.S.log['2026-11-07']=[{k:2000,p:100,f:60}];x.context.S.water['2026-11-07']=1500;
- x.select(45);x.run('saveWorkout();openWorkout()');x.select(30);x.run('saveWorkout()');const before=x.run('gStats().P');assert.equal(x.run('habitSum(today()).n'),0);
- x.context.Date=class extends FixedDate{getHours(){return 21}};const after=x.run('gStats().P');assert.ok(after>before);assert.equal(x.run('gStats().workouts.count'),2);assert.equal(x.run('habitSum(today()).n'),1);
+ x.select(45);x.run('saveWorkout();openWorkout()');x.select(30);x.run('saveWorkout()');assert.equal(x.run('gStats().plan.nutrition.filled'),0);assert.equal(x.run('gStats().P'),0);
+ x.context.Date=class extends FixedDate{getHours(){return 21}};assert.equal(x.run('gStats().plan.nutrition.filled'),1);assert.equal(x.run('gStats().plan.training.count'),2);assert.equal(x.run('gStats().P'),0);
 });
 test('two workouts requested through the assistant remain separate and both count toward the goal',()=>{
  const x=progressSetup(),begin=html.indexOf('let UNDO=null;'),finish=html.indexOf('\nasync function ask',begin);assert.ok(begin>=0&&finish>begin);
  x.context.cur=()=> '2026-11-07';x.context.R=Math.round;
  vm.runInContext(html.slice(begin,finish),x.context);
  x.run("applyActions([{type:'add_workout',kinds:['strength','abs'],minutes:75},{type:'add_workout',kinds:['cardio'],minutes:300}])");
- assert.equal(x.context.S.wk.length,2);assert.deepEqual(x.stored.wk.map(w=>w.m),[75,300]);assert.equal(x.run('gStats().workouts.count'),2);assert.ok(x.run('gStats().P')>0);
+ assert.equal(x.context.S.wk.length,2);assert.deepEqual(x.stored.wk.map(w=>w.m),[75,300]);assert.equal(x.run('gStats().plan.training.count'),2);assert.equal(x.run('gStats().plan.training.minutes'),375);assert.equal(x.run('gStats().P'),0);
 });
-test('food and training credit each have their own cap and do not change the measurement requirement',()=>{
+test('full plan adherence does not imply achieving a measurement goal',()=>{
  const x=progressSetup();x.context.S.goal.startDate='2026-10-01';
  for(let i=1;i<=31;i++){const date='2026-10-'+String(i).padStart(2,'0');x.context.S.log[date]=[{k:2000,p:100,f:60}];x.context.S.water[date]=1500}
- assert.equal(x.run('gStats().P'),15);
+ assert.equal(x.run('gStats().P'),0);assert.equal(x.run('gStats().plan.percent'),50);
  for(let i=0;i<10;i++)x.context.S.wk.push({id:'session'+i,d:'2026-11-07',t:['str'],m:45});
- assert.equal(x.run('gStats().P'),20);assert.equal(x.run('gStats().B'),0);
+ assert.equal(x.run('gStats().P'),0);assert.equal(x.run('gStats().plan.percent'),100);
 });
