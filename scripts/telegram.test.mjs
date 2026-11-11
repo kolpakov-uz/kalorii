@@ -40,3 +40,14 @@ test('native fullscreen refusal or a bridge exception leaves the expanded app wo
  const x=fullscreenFixture();x.tg.init(()=>{});x.events.fullscreenFailed({error:'UNSUPPORTED'});x.app.colorScheme='light';x.events.themeChanged();assert.equal(x.root.dataset.theme,'light');assert.deepEqual(x.calls,['ready','expand','fullscreen']);
  const y=fullscreenFixture({requestFullscreen(){throw new Error('unsupported bridge')}});assert.doesNotThrow(()=>y.tg.init(()=>{}));assert.deepEqual(y.calls,['ready','expand']);assert.equal(y.root.dataset.theme,'dark');
 });
+
+test('the food dialog colors Telegram background and header through theme changes and restores the page on close',()=>{
+ const headers=[],backgrounds=[];
+ const x=fullscreenFixture({setHeaderColor:color=>headers.push(color),setBackgroundColor:color=>backgrounds.push(color)});
+ x.tg.init(()=>{});assert.equal(backgrounds.at(-1),'#0F1613');
+ x.tg.setDialogOpen(true);assert.equal(backgrounds.at(-1),'#18221D');assert.equal(headers.at(-1),'#18221D');
+ const calls=backgrounds.length;x.tg.setDialogOpen(true);assert.equal(backgrounds.length,calls);
+ x.app.colorScheme='light';x.events.themeChanged();assert.equal(backgrounds.at(-1),'#ffffff');
+ x.tg.setDialogOpen(false);assert.equal(backgrounds.at(-1),'#F2F5F1');assert.equal(headers.at(-1),'#F2F5F1');
+ assert.doesNotThrow(()=>setup().tg.setDialogOpen(true));
+});

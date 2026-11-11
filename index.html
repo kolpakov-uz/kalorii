@@ -9,7 +9,7 @@
 <meta name="theme-color" content="#1E8E5A"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="КалорИИ">
 <title>КалорИИ — дневник питания с ИИ</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="telegram.js?v=fullscreen1"></script>
+<script src="telegram.js?v=food-screen1"></script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap">
 <style>
 :root{--bg:#F2F5F1;--card:#fff;--ink:#17231D;--mut:#6B7D74;--line:#E1E8E3;--acc:#1E8E5A;--on:#fff;--p:#3A6FF0;--f:#F2A31B;--c:#E8594F;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -232,6 +232,14 @@ button{transition:transform .12s ease,filter .12s,background .2s,opacity .2s}
 .tg #app{padding-bottom:calc(110px + var(--tg-app-bottom,0px))}
 .tg .tabs{padding-bottom:calc(8px + var(--tg-app-bottom,0px))}.tg .ov{padding-top:var(--tg-app-top,0px)}.tg .sh{padding-bottom:calc(20px + var(--tg-app-bottom,0px))}
 .tg #toast{top:calc(12px + var(--tg-app-top,0px))}.tg .comp{bottom:calc(62px + var(--tg-app-bottom,0px))}.tg body.kbd .comp{bottom:var(--kb,0px)}
+:root.food-dialog-open,.food-dialog-open body{background:var(--card)}
+.ov.food-dialog{--food-safe-top:env(safe-area-inset-top,0px);--food-safe-bottom:env(safe-area-inset-bottom,0px);padding:0;align-items:stretch;background:var(--card)}
+.tg .ov.food-dialog{--food-safe-top:var(--tg-app-top,0px);--food-safe-bottom:var(--tg-app-bottom,0px);padding-top:0}
+.ov.food-dialog.typing,.ov.food-dialog.kb{--food-safe-bottom:0px}
+.ov.food-dialog .sh.chat{width:100%;max-width:none;height:100%!important;max-height:none!important;margin:0;border-radius:0;padding:calc(14px + max(0px,var(--food-safe-top) - var(--food-offset-top,0px))) 16px 0;padding-bottom:calc(10px + var(--food-safe-bottom))!important;animation:none;transition:none}
+.food-dialog .grab{display:none}.food-dialog .ad{width:100%;max-width:680px;margin:0 auto}
+.food-dialog .adh,.food-dialog .seg,.food-dialog #fq,.food-dialog #pv,.food-dialog .cmp,.food-dialog .voice-status{flex-shrink:0}
+@media(max-width:360px){.food-dialog .adh{flex-wrap:wrap;gap:8px}.food-dialog .adh h2{font-size:20px}.food-dialog .dchip{font-size:12px;padding:8px}.food-dialog .seg{margin-top:8px}}
 .access-link{display:block;text-align:center;text-decoration:none;color:var(--ink)}nav.tabs[hidden]{display:none}
 .goal-top{display:flex;align-items:center;justify-content:space-between;gap:9px;flex-wrap:wrap}.goal-delta{border-radius:9px;padding:5px 8px;font-size:11px;font-weight:700;white-space:nowrap}.goal-delta.down{color:color-mix(in srgb,var(--c) 80%,var(--ink));background:color-mix(in srgb,var(--c) 10%,var(--card))}.goal-delta.up{color:var(--acc);background:color-mix(in srgb,var(--acc) 10%,var(--card))}.goal-delta.neutral{color:var(--mut);background:var(--bg)}
 .goal-value{margin-top:16px}.goal-remaining{text-align:right}.goal-remaining b{font-size:18px}.goal-measures{margin-top:18px}.goal-measures small{display:block}.goal-stamp{margin-top:12px;font-size:12px}.goal-plan-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.goal-plan-number{font-size:30px;white-space:nowrap}.goal-plan-row{margin-top:16px}.goal-plan-row>div:first-child{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px}.goal-coverage{padding-top:12px;margin-top:14px;border-top:1px solid var(--line)}
@@ -268,20 +276,56 @@ const items=d=>S.log[d]||[];
 const tot=d=>items(d).reduce((a,i)=>({k:a.k+i.k,p:a.p+i.p,f:a.f+i.f,c:a.c+i.c}),{k:0,p:0,f:0,c:0});
 function norm(p,raw){const b=10*p.w+6.25*p.h-5*p.a+(p.sex=='m'?5:-161),g={lose:[.85,1.8],gain:[1.1,1.8],abs:[.88,2.2],keep:[1,1.4]}[p.goal]||[1,1.4];let k=Math.max(1200,R(b*p.act*g[0]/10)*10);const pr=R(p.w*g[1]),f=R(k*.27/9),r={k,p:pr,f,c:Math.max(0,R((k-pr*4-f*9)/4))};if(S.custom&&!raw){const c=S.custom;return{k:c.p*4+c.f*9+c.c*4,p:c.p,f:c.f,c:c.c}}return r}
 const IC={goal:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="0.8"/>',today:'<path d="M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1h-4v-5H9v5H5a1 1 0 0 1-1-1z"/>',coach:'<path d="M5 6h14a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-7l-4 3v-3H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z"/>',stats:'<path d="M5 20V11M12 20V5M19 20v-7"/>',set:'<path d="M4 8h9M17 8h3M4 16h3M11 16h9"/><circle cx="15" cy="8" r="2"/><circle cx="9" cy="16" r="2"/>'};
-function telegramBackState(){KaloriiTelegram.back(PrivateAccess.allowed&&!!S.profile&&(V!=='today'||!!document.querySelector('#sheet .ov')))}
+function telegramBackState(){
+ const foodDialog=!!document.querySelector('#sheet .food-dialog');
+ document.documentElement.classList.toggle('food-dialog-open',foodDialog);
+ KaloriiTelegram.setDialogOpen(foodDialog);
+ KaloriiTelegram.back(PrivateAccess.allowed&&!!S.profile&&(V!=='today'||!!document.querySelector('#sheet .ov')));
+}
 function go(k){kbClose();V=k;render();const a=$('#app');a.classList.remove('vf');void a.offsetWidth;a.classList.add('vf');if(k!='coach')scrollTo(0,0);anim();setTimeout(()=>a.classList.remove('vf'),1100)}
 let SY=0;
 function lockBody(){const b=document.body;if(b.style.position!='fixed'){SY=scrollY;b.style.cssText+=`;position:fixed;top:-${SY}px;left:0;right:0`}}
 function unlockBody(){const b=document.body;if(b.style.position=='fixed'){b.style.position=b.style.top=b.style.left=b.style.right='';scrollTo(0,SY)}}
 let CS=0;
-function sheet(h,lock){CS++;$('#sheet').innerHTML=`<div class="ov" ${lock?'':'onclick="if(event.target==this)closeSheet()"'}><div class="sh">${lock?'':'<div class="grab"></div>'}${h}</div></div>`;lockBody();fixVV();telegramBackState()}
-function fixVV(){const o=document.querySelector('#sheet .ov'),v=window.visualViewport;if(!o)return;if(CK){o.classList.add('kb');o.style.height='';o.style.top='';o.style.bottom=''}else if(v){const kb=innerHeight-v.height>120;o.classList.toggle('kb',kb);if(kb){o.style.height=v.height+'px';o.style.top=v.offsetTop+'px';o.style.bottom='auto'}else{o.style.height='';o.style.top='';o.style.bottom=''}}const a=document.getElementById('am');if(a)a.scrollTop=a.scrollHeight}
+function sheet(h,lock,fullScreen=false){
+ CS++;
+ $('#sheet').innerHTML=`<div class="ov${fullScreen?' food-dialog':''}" ${lock?'':'onclick="if(event.target==this)closeSheet()"'}><div class="sh${fullScreen?' chat':''}" ${fullScreen?'role="dialog" aria-modal="true" aria-label="Добавить еду"':''}>${lock||fullScreen?'':'<div class="grab"></div>'}${h}</div></div>`;
+ lockBody();fixVV();telegramBackState();
+}
+function fixVV(){
+ const overlay=document.querySelector('#sheet .ov'),viewport=window.visualViewport;
+ if(!overlay)return;
+ const foodDialog=overlay.classList.contains('food-dialog');
+ const keyboard=CK||!!viewport&&innerHeight-viewport.height>120;
+ overlay.classList.toggle('kb',keyboard);
+ const active=document.activeElement;
+ const editing=foodDialog&&!CK&&overlay.contains(active)&&active.matches('input,textarea,[contenteditable="true"],[contenteditable="plaintext-only"]');
+ overlay.classList.toggle('typing',editing);
+ if(foodDialog){
+  const top=Math.max(0,viewport?.offsetTop||0);
+  overlay.style.top=top+'px';
+  overlay.style.height=(viewport?.height||innerHeight)+'px';
+  overlay.style.bottom='auto';
+  overlay.style.setProperty('--food-offset-top',top+'px');
+ }else if(CK){
+  overlay.style.height='';overlay.style.top='';overlay.style.bottom='';
+ }else if(viewport){
+  overlay.style.height=keyboard?viewport.height+'px':'';
+  overlay.style.top=keyboard?viewport.offsetTop+'px':'';
+  overlay.style.bottom=keyboard?'auto':'';
+ }
+ const messages=document.getElementById('am');
+ if(messages)messages.scrollTop=messages.scrollHeight;
+}
 if(window.visualViewport){visualViewport.addEventListener('resize',fixVV);visualViewport.addEventListener('scroll',fixVV)}
-function closeSheet(skip){voiceCancel();kbClose();const o=document.querySelector('#sheet .ov'),t=++CS;if(o&&!skip)o.classList.add('out');setTimeout(()=>{if(t==CS){$('#sheet').innerHTML='';unlockBody();telegramBackState()}},o?220:0)}
+window.addEventListener('resize',fixVV);
+document.addEventListener('focusin',fixVV);
+document.addEventListener('focusout',()=>requestAnimationFrame(fixVV));
+function closeSheet(skip){voiceCancel();kbClose();const o=document.querySelector('#sheet .ov'),t=++CS;if(o?.contains(document.activeElement))document.activeElement.blur();if(o&&!skip)o.classList.add('out');setTimeout(()=>{if(t==CS){$('#sheet').innerHTML='';unlockBody();telegramBackState()}},o?220:0)}
 function render(){voiceCancel();telegramBackState();
  $('#browser-link').hidden=!KaloriiTelegram.active||!PrivateAccess.allowed;
  $('#tabs').parentElement.hidden=!PrivateAccess.allowed;
- if(!PrivateAccess.allowed){$('#sheet').innerHTML='';unlockBody();$('#app').innerHTML=PrivateAccess.markup(!!S.profile||Object.keys(S.log).length>0);return}
+ if(!PrivateAccess.allowed){$('#sheet').innerHTML='';unlockBody();telegramBackState();$('#app').innerHTML=PrivateAccess.markup(!!S.profile||Object.keys(S.log).length>0);return}
  $('#tabs').innerHTML=[['today','Сегодня'],['goal','Цель'],['coach','ИИ-тренер'],['stats','Прогресс'],['set','Настройки']].map(([k,n])=>`<button class="${V==k?'on':''}" aria-label="${n}" onclick="go('${k}')"><svg viewBox="0 0 24 24" aria-hidden="true">${IC[k]}</svg></button>`).join('');
  if(!S.profile){$('#app').innerHTML='<h1 class="sr-only">КалорИИ</h1><p class="sub">Дневник питания с ИИ-тренером</p>';return openProfile()}
  $('#app').innerHTML={today:vToday,goal:vGoal,coach:vCoach,stats:vStats,set:vSet}[V]();if(V=='coach')scrollTo(0,document.body.scrollHeight)}
@@ -447,7 +491,7 @@ async function sendFood(){
  }
 }
 function openAdd(m){const h=new Date().getHours();meal=m||(h<11?'b':h<16?'l':h<21?'d':'s');AF=null;
- sheet(`<div class="ad"><div class="adh"><h2>Добавить еду</h2><label class="dchip">📅 <span id="dl">${dlab(cur())}</span><input type="date" value="${cur()}" max="${today()}" onchange="pickDay(this.value)" aria-label="Дата" tabindex="-1"></label><button class="x" aria-label="Закрыть" onclick="closeSheet()">×</button></div><div class="seg">${MEALS.map(([k,n])=>`<button data-m="${k}" class="${k==meal?'on':''}" onclick="setMeal('${k}')">${n}</button>`).join('')}</div><div class="am" id="am"></div><div class="chips" id="fq"></div><div id="pv"></div><div class="cmp"><div class="menu" id="mn" hidden><button onclick="$('#fc').click()">Сделать фото</button><button onclick="$('#fg').click()">Из галереи</button></div><label class="pl" aria-label="Добавить фото">${PLUS}<input id="fg" type="file" accept="image/*" onchange="attach(this.files[0])"></label><div id="ai" class="ce" contenteditable="${OWNKB()?'false':'plaintext-only'}" onclick="kbOpen(this,event)" role="textbox" aria-multiline="true" aria-label="Что вы съели" data-ph="Еда и вес…" oninput="gr(this)"></div>${voiceButton('ai')}<button class="sb" aria-label="Отправить" onpointerdown="event.preventDefault()" onclick="sendFood()" disabled>${UP}</button><input id="fc" type="file" accept="image/*" capture="environment" hidden onchange="attach(this.files[0])"><input id="ff" type="file" accept=".jpg,.jpeg,.png,.webp,.heic,.heif" hidden onchange="attach(this.files[0])"></div></div>`);document.querySelector('#sheet .sh').classList.add('chat');loadHist();drawFq();setTimeout(loadHist,60)}
+ sheet(`<div class="ad"><div class="adh"><h2>Добавить еду</h2><label class="dchip">📅 <span id="dl">${dlab(cur())}</span><input type="date" value="${cur()}" max="${today()}" onchange="pickDay(this.value)" aria-label="Дата" tabindex="-1"></label><button class="x" aria-label="Закрыть" onclick="closeSheet()">×</button></div><div class="seg">${MEALS.map(([k,n])=>`<button data-m="${k}" class="${k==meal?'on':''}" onclick="setMeal('${k}')">${n}</button>`).join('')}</div><div class="am" id="am"></div><div class="chips" id="fq"></div><div id="pv"></div><div class="cmp"><div class="menu" id="mn" hidden><button onclick="$('#fc').click()">Сделать фото</button><button onclick="$('#fg').click()">Из галереи</button></div><label class="pl" aria-label="Добавить фото">${PLUS}<input id="fg" type="file" accept="image/*" onchange="attach(this.files[0])"></label><div id="ai" class="ce" contenteditable="${OWNKB()?'false':'plaintext-only'}" onclick="kbOpen(this,event)" role="textbox" aria-multiline="true" aria-label="Что вы съели" data-ph="Еда и вес…" oninput="gr(this)"></div>${voiceButton('ai')}<button class="sb" aria-label="Отправить" onpointerdown="event.preventDefault()" onclick="sendFood()" disabled>${UP}</button><input id="fc" type="file" accept="image/*" capture="environment" hidden onchange="attach(this.files[0])"><input id="ff" type="file" accept=".jpg,.jpeg,.png,.webp,.heic,.heif" hidden onchange="attach(this.files[0])"></div></div>`,false,true);loadHist();drawFq();setTimeout(loadHist,60)}
 function allFoods(){return S.foods.map(f=>[f.n,f.k,f.p,f.f,f.c,f.d]).concat(DB)}
 const hasAPI=()=>API.startsWith('http');
 async function callAPI(o){const x=await PrivateAccess.request(o);if(!x.ok)throw{code:x.status==429?'rl':'err'};return (await x.json()).text}
