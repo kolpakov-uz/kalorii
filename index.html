@@ -311,6 +311,7 @@ function saveProfile(){const g=i=>+$('#'+i).value,p={sex:$('#s_sex').value,a:g('
 /* ---- добавление еды ---- */
 let meal='b';
 let AF=null,FQ=[];
+const foodPhotoImages=new WeakMap();
 const PLUS='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',UP='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
 function thumb(f){return new Promise(ok=>{const i=new Image();i.onload=()=>{const k=Math.min(1,240/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=Math.round(i.width*k);c.height=Math.round(i.height*k);c.getContext('2d').drawImage(i,0,0,c.width,c.height);ok(c.toDataURL('image/jpeg',.55))};i.onerror=()=>ok('');i.src=URL.createObjectURL(f)})}
 function sbtn(t){const b=t.closest('.cmp,.send').querySelector('.sb');if(b)b.disabled=!!VOICE||(!val(t)&&!AF)}
@@ -342,7 +343,17 @@ function attach(f){if(!f)return;AF=f;sbtn($('#ai'));$('#mn').hidden=true;$('#pv'
 const NSTOP=new Set(['я','съел','съела','ел','ела','на','с','со','и','в','завтрак','обед','ужин','перекус','порцию','порция','порции','примерно','около','г','гр','грамм','мл','кг','шт','только','от','блюда','блюдо','этого','это','всего','часть','ещё','еще','добавь','запиши','записал','записала','мне','моё','мое','сегодня','вчера','пол','половину','половина','треть','четверть','процентов','процента','процент']),CORR=/(исправ|измени|поменя|поправ|замени|вместо|на самом деле|ошиб|не так|не то|это не|убер|удал)/i,DEL=/(убер|удал)/i;
 function parsePortion(t){t=t.toLowerCase();let m=t.match(/(?:съел[аи]?|только|ела)\s+(?:около\s+)?(\d{1,3})\s*%/)||t.match(/(\d{1,3})\s*%\s*от\s/);if(m){const v=+m[1];if(v>0&&v<=100)return v/100}
  if(/три четверт/.test(t))return .75;if(/две трети/.test(t))return .67;if(/треть/.test(t))return .33;if(/четверт/.test(t))return .25;if(/(пол(ов)?ин|полпорц|полтарел)/.test(t))return .5;return null}
-function parseGrams(t){const m=t.toLowerCase().match(/(\d+(?:[.,]\d+)?)\s*(кг|г|гр|грамм[а-я]*|g|мл)(?=\s|$|[,.;])/);if(!m)return null;let v=parseFloat(m[1].replace(',','.'));if(m[2]=='кг')v*=1000;return v>0&&v<=5000?Math.round(v):null}
+function parseGrams(text,requireSingle=false){
+ const normalized=text.toLowerCase();
+ const matches=[...normalized.matchAll(/(\d+(?:[.,]\d+)?)\s*(кг|г|гр|грамм[а-я]*|g|мл)(?=\s|$|[,.;])/g)];
+ if(!matches.length||requireSingle&&matches.length!==1)return null;
+ const match=matches[0];
+ // Volume, per-item weights and several quantities need the model's interpretation.
+ if(requireSingle&&(match[2]==='мл'||/\d/.test(normalized.replace(match[0],''))||/(?:кажд|на\s+штуку|(?:^|\s)по\s*\d)/.test(normalized)))return null;
+ let grams=parseFloat(match[1].replace(',','.'));
+ if(match[2]==='кг')grams*=1000;
+ return grams>0&&grams<=5000?Math.round(grams):null;
+}
 function normKey(t){t=t.toLowerCase().replace(/(?:съел[аи]?|только|ела)\s+(?:около\s+)?\d{1,3}\s*%/g,' ').replace(/\d{1,3}\s*%\s*от(?=\s|$)/g,' ').replace(/\d+(?:[.,]\d+)?\s*(?:кг|г|гр|грамм[а-я]*|g|мл|шт[а-я]*)(?=\s|$|[,.;])/g,' ');return t.replace(/(\d)\s*%/g,'$1%').split(/[\s,.;:()!?]+/).filter(w=>w&&!NSTOP.has(w)&&!/^\d+([.,]\d+)?$/.test(w)).join(' ')}
 const cl=(v,m)=>Math.min(m,Math.max(0,+v||0));
 function lastEntry(day,mk){const L=items(day).filter(x=>x.m==mk);return L.length?L.at(-1):null}
@@ -350,26 +361,91 @@ function scaleEntry(e,g){const f=g/e.g;e.k=R(e.k*f);e.p=R(e.p*f);e.f=R(e.f*f);e.
 function localEdit(e,pf,pg,text,day){if(DEL.test(text)){S.log[day]=items(day).filter(x=>x.id!=e.id);save();render();return{ids:[],msg:'Удалено: '+e.n}}scaleEntry(e,Math.max(1,Math.round(pf?e.g*pf:pg)));save();render();return{ids:[e.id],lbl:'Исправлено'}}
 function fromCache(c,pf,pg,text,day,mk){const g=Math.max(1,Math.round((pg||c.g)*(pf||1))),id=addEntry({m:mk,n:c.n,g,k:R(c.k*g/100),p:R(c.p*g/100),f:R(c.f*g/100),c:R(c.c*g/100)},text,day);return{ids:[id],lbl:'Добавлено'}}
 function normAct(a){if(!a||typeof a!='object')return null;const T={add_food:'add',edit_food:'edit',delete_food:'delete'},op=a.op||T[a.type]||((a.name||a.n)&&a.type==null?'add':null);if(!op)return null;const r={...a,op};if(op=='add'){const g=+a.grams||+a.g||100;r.name=a.name||a.n;r.grams=g;[['kcal100','kcal'],['protein100','protein'],['fat100','fat'],['carbs100','carbs']].forEach(([p,t])=>{if(r[p]==null&&a[t]!=null)r[p]=(+a[t]||0)/g*100})}return r}
-function applyDish(o,day,mk,text,key){const A=(Array.isArray(o.actions)?o.actions:(Array.isArray(o.items)?o.items.map(x=>({op:'add',name:x.name,grams:x.grams,kcal100:(+x.kcal||0)/(+x.grams||100)*100,protein100:(+x.protein||0)/(+x.grams||100)*100,fat100:(+x.fat||0)/(+x.grams||100)*100,carbs100:(+x.carbs||0)/(+x.grams||100)*100})):[])).map(normAct).filter(Boolean),ids=[],adds=A.filter(x=>x.op=='add').length;let ne=0,nd=0,na=0;
+function applyDish(o,day,mk,text,key,photoGrams=null){const A=(Array.isArray(o.actions)?o.actions:(Array.isArray(o.items)?o.items.map(x=>({op:'add',name:x.name,grams:x.grams,kcal100:(+x.kcal||0)/(+x.grams||100)*100,protein100:(+x.protein||0)/(+x.grams||100)*100,fat100:(+x.fat||0)/(+x.grams||100)*100,carbs100:(+x.carbs||0)/(+x.grams||100)*100})):[])).map(normAct).filter(Boolean),ids=[],adds=A.filter(x=>x.op=='add').length;let ne=0,nd=0,na=0;
  for(const a of A.slice(0,8)){
-  if(a.op=='add'){const g=Math.round(Math.min(3000,Math.max(1,+a.grams||100))),n=String(a.name||text||'Блюдо').slice(0,60),k1=cl(a.kcal100,950),p1_=cl(a.protein100,100),f1_=cl(a.fat100,100),c1=cl(a.carbs100,100);ids.push(addEntry({m:mk,n,g,k:R(k1*g/100),p:R(p1_*g/100),f:R(f1_*g/100),c:R(c1*g/100)},text,day));na++;if(key&&adds==1)S.dc[key]={n,g,k:k1,p:p1_,f:f1_,c:c1}}
+  if(a.op=='add'){
+   const requestedGrams=adds===1&&photoGrams?photoGrams:+a.grams||100;
+   const g=Math.round(Math.min(3000,Math.max(1,requestedGrams))),n=String(a.name||text||'Блюдо').slice(0,60);
+   const k1=cl(a.kcal100,950),p1_=cl(a.protein100,100),f1_=cl(a.fat100,100),c1=cl(a.carbs100,100);
+   ids.push(addEntry({m:mk,n,g,k:R(k1*g/100),p:R(p1_*g/100),f:R(f1_*g/100),c:R(c1*g/100)},text,day));na++;
+   if(key&&adds==1)S.dc[key]={n,g,k:k1,p:p1_,f:f1_,c:c1};
+  }
   else if(a.op=='edit'){const e=items(day).find(x=>x.id==a.id);if(!e)continue;const g=a.grams!=null?Math.round(Math.min(3000,Math.max(1,+a.grams))):e.g;if(a.kcal100!=null||a.protein100!=null||a.fat100!=null||a.carbs100!=null){const pk=x=>x/e.g*100;e.k=R(cl(a.kcal100!=null?a.kcal100:pk(e.k),950)*g/100);e.p=R(cl(a.protein100!=null?a.protein100:pk(e.p),100)*g/100);e.f=R(cl(a.fat100!=null?a.fat100:pk(e.f),100)*g/100);e.c=R(cl(a.carbs100!=null?a.carbs100:pk(e.c),100)*g/100);e.g=g}else scaleEntry(e,g);if(a.name)e.n=String(a.name).slice(0,60);ids.push(e.id);ne++}
   else if(a.op=='delete'){const e=items(day).find(x=>x.id==a.id);if(!e)continue;S.log[day]=items(day).filter(x=>x.id!=a.id);nd++}}
  save();render();return{ids,lbl:ne&&!na?'Исправлено':'Добавлено',msg:nd&&!ids.length?'Запись удалена':'',reply:String(o.reply||'')}}
-function foodCtx(day,mk){const L=items(day).filter(x=>x.m==mk),kn=S.foods.slice(0,25).map(x=>`${x.n}: ${x.k} ккал, Б ${x.p}, Ж ${x.f}, У ${x.c} на 100 г`).join('; '),hs=(S.hist[day+'|'+mk]||[]).slice(-6).map(m=>m.r=='me'?'Пользователь: '+(m.t||'фото'):'Ассистент: '+(m.t||'записал')).join('\n');return `Приём пищи: ${MEALS.find(x=>x[0]==mk)[1]}. Записи этого приёма сегодня (id: название, г, ккал): ${L.map(x=>`${x.id}: ${x.n}, ${x.g} г, ${x.k} ккал`).join('; ')||'нет'}.\nИзвестные блюда пользователя: ${kn||'нет'}.\nПоследние сообщения:\n${hs||'нет'}`}
-async function sendFood(){if(VOICE)return toast('Сначала завершите голосовой ввод.');kbFlush();const i=$('#ai'),text=val(i),f=AF;if((!text&&!f)||sendFood.b)return;sendFood.b=1;const k=hk(),day=cur(),mk=meal;i.textContent='';kbSync(1);i.focus();AF=null;$('#pv').innerHTML='';i.dataset.ph='Еда и вес…';
- const th=f?await thumb(f):'';am((th?`<img class="ph" alt="" src="${th}">`:'')+esc(text),'me');pushH({r:'me',t:text,img:th},k);sbtn(i);const w=am('','ai'),stop=think(w),t0=Date.now();
- try{let res;const pf=parsePortion(text),pg=parseGrams(text),key=normKey(text),corr=CORR.test(text),last=lastEntry(day,mk);
-  if(!f&&key===''&&last&&(pf||pg||DEL.test(text)))res=localEdit(last,pf,pg,text,day);
-  else if(!f&&key&&S.dc[key]&&!corr)res=fromCache(S.dc[key],pf,pg,text,day,mk);
-  else if(hasAPI()){const r=await callAPI(f?{mode:'photo',image:await shrink(f),text,context:foodCtx(day,mk),portion:pf}:{mode:'dish',text,context:foodCtx(day,mk),portion:pf}),o=JSON.parse(r.replace(/```json|```/g,''));res=applyDish(o,day,mk,text,f?'':key);if(!res.ids.length&&!res.msg){const kf=!f&&key&&S.foods.find(y=>normKey(y.n)==key);if(kf)res=fromCache({n:kf.n,g:100,k:kf.k,p:kf.p,f:kf.f,c:kf.c},pf,pg,text,day,mk);else if(res.reply&&!/(записал|записан|добавил|добавлен|внес|внёс)/i.test(res.reply))throw{code:'reply',text:res.reply};else throw{code:'norec'}}}
-  else if(!f){const g=pg||100,q=key.split(' ')[0],x=q&&allFoods().find(y=>y[0].toLowerCase().includes(q));if(!x)throw{code:'nb'};const gg=Math.max(1,Math.round(g*(pf||1)));res={ids:[addEntry({m:mk,n:x[0],g:gg,k:R(x[1]*gg/100),p:R(x[2]*gg/100),f:R(x[3]*gg/100),c:R(x[4]*gg/100)},text,day)],lbl:'Добавлено'}}
-  else throw{code:'na'};
-  await sleep(Math.max(0,1200-(Date.now()-t0)));stop();
-  if(res.ids.length){pushH({r:'ai',ids:res.ids,lbl:res.lbl},k);w.innerHTML=resHtml(res.ids,day,mk,res.lbl)+(res.reply?`<small class="ok" style="color:var(--ink)">${esc(res.reply)}</small>`:'')}
-  else{pushH({r:'ai',t:res.msg},k);w.textContent=res.msg}}
- catch(e){await sleep(Math.max(0,900-(Date.now()-t0)));stop();if(e.code=='reply')pushH({r:'ai',t:e.text},k);w.textContent=e.code=='reply'?e.text:e.code=='rl'?'Слишком много запросов, подождите минуту.':e.code=='na'?'Для фото нужно подключить ИИ.':e.code=='nb'?'ИИ не подключён, и такого продукта нет в базе.':e.code=='norec'?'Запись не внесена: ИИ не вернул данные блюда. Напишите ещё раз, например «сюзьма 5%, 350 г».':e.code=='empty'?'Не удалось распознать еду. Опишите подробнее.':'Не удалось посчитать. Попробуйте ещё раз.'}
- sendFood.b=0;const A=$('#am');if(A)A.scrollTop=1e5}
+function foodCtx(day,mk){const L=items(day).filter(x=>x.m==mk),kn=S.foods.slice(0,25).map(x=>`${x.n}: ${x.k} ккал, Б ${x.p}, Ж ${x.f}, У ${x.c} на 100 г`).join('; ');return `Дата: ${day}. Приём пищи: ${MEALS.find(x=>x[0]==mk)[1]}. Записи этого приёма (id: название, г, ккал): ${L.map(x=>`${x.id}: ${x.n}, ${x.g} г, ${x.k} ккал`).join('; ')||'нет'}.\nИзвестные блюда пользователя: ${kn||'нет'}.`}
+function foodHistory(day,mk,newPhoto){
+ const history=(S.hist[day+'|'+mk]||[]).slice(-8);
+ const photo=newPhoto?null:history.findLast(message=>message.r==='me'&&message.img);
+ return history.map(message=>{
+  const role=message.r==='me'?'user':'model';
+  const records=items(day).filter(entry=>(message.ids||[]).includes(entry.id));
+  const text=message.t||(role==='model'&&records.length?'Запись выполнена: '+JSON.stringify(records):'');
+  const result={role,text};
+  if(message===photo){
+   const cached=foodPhotoImages.get(message);
+   const image=cached||String(message.img).match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+   if(image){result.mimeType=cached?'image/jpeg':image[1];result.image=cached||image[2]}
+  }
+  return result;
+ }).filter(message=>message.text||message.image);
+}
+async function sendFood(){
+ if(VOICE)return toast('Сначала завершите голосовой ввод.');
+ kbFlush();
+ const input=$('#ai'),text=val(input),file=AF;
+ if((!text&&!file)||sendFood.b)return;
+ sendFood.b=1;
+ const historyKey=hk(),day=cur(),selectedMeal=meal;
+ const history=foodHistory(day,selectedMeal,!!file);
+ const photoConversation=!!file||history.some(message=>message.image);
+ input.textContent='';kbSync(1);input.focus();AF=null;
+ $('#pv').innerHTML='';input.dataset.ph='Еда и вес…';
+ const preview=file?await thumb(file):'';
+ const userMessage={r:'me',t:text,img:preview};
+ am((preview?`<img class="ph" alt="" src="${preview}">`:'')+esc(text),'me');
+ pushH(userMessage,historyKey);sbtn(input);
+ const bubble=am('','ai'),stop=think(bubble),started=Date.now();
+ try{
+  let result;
+  const fraction=parsePortion(text),grams=parseGrams(text),key=normKey(text),correction=CORR.test(text),last=lastEntry(day,selectedMeal);
+  if(!photoConversation&&key===''&&last&&(fraction||grams||DEL.test(text))){
+   result=localEdit(last,fraction,grams,text,day);
+  }else if(!photoConversation&&key&&S.dc[key]&&!correction){
+   result=fromCache(S.dc[key],fraction,grams,text,day,selectedMeal);
+  }else if(hasAPI()){
+   const request={mode:file?'photo':'dish',text,context:foodCtx(day,selectedMeal),portion:fraction,history};
+   if(file){request.image=await shrink(file);foodPhotoImages.set(userMessage,request.image)}
+   const raw=await callAPI(request);
+   const response=JSON.parse(raw.replace(/```json|```/g,''));
+   const photoGrams=photoConversation&&!fraction?parseGrams(text,true):null;
+   result=applyDish(response,day,selectedMeal,text,photoConversation?'':key,photoGrams);
+   if(!result.ids.length&&!result.msg){
+    const known=!photoConversation&&key&&S.foods.find(food=>normKey(food.n)===key);
+    if(known)result=fromCache({n:known.n,g:100,k:known.k,p:known.p,f:known.f,c:known.c},fraction,grams,text,day,selectedMeal);
+    else if(result.reply&&!/(записал|записан|добавил|добавлен|внес|внёс)/i.test(result.reply))throw{code:'reply',text:result.reply};
+    else throw{code:'norec'};
+   }
+  }else if(!file){
+   const gramsPerPortion=grams||100,query=key.split(' ')[0],food=query&&allFoods().find(row=>row[0].toLowerCase().includes(query));
+   if(!food)throw{code:'nb'};
+   const weight=Math.max(1,Math.round(gramsPerPortion*(fraction||1)));
+   result={ids:[addEntry({m:selectedMeal,n:food[0],g:weight,k:R(food[1]*weight/100),p:R(food[2]*weight/100),f:R(food[3]*weight/100),c:R(food[4]*weight/100)},text,day)],lbl:'Добавлено'};
+  }else throw{code:'na'};
+  await sleep(Math.max(0,1200-(Date.now()-started)));stop();
+  if(result.ids.length){
+   pushH({r:'ai',ids:result.ids,lbl:result.lbl},historyKey);
+   bubble.innerHTML=resHtml(result.ids,day,selectedMeal,result.lbl)+(result.reply?`<small class="ok" style="color:var(--ink)">${esc(result.reply)}</small>`:'');
+  }else{pushH({r:'ai',t:result.msg},historyKey);bubble.textContent=result.msg}
+ }catch(error){
+  await sleep(Math.max(0,900-(Date.now()-started)));stop();
+  if(error.code==='reply')pushH({r:'ai',t:error.text},historyKey);
+  bubble.textContent=error.code==='reply'?error.text:error.code==='rl'?'Слишком много запросов, подождите минуту.':error.code==='na'?'Для фото нужно подключить ИИ.':error.code==='nb'?'ИИ не подключён, и такого продукта нет в базе.':error.code==='norec'?'Запись не внесена: ИИ не вернул данные блюда. Напишите ещё раз, например «сюзьма 5%, 350 г».':'Не удалось посчитать. Попробуйте ещё раз.';
+ }finally{
+  sendFood.b=0;
+  const messages=$('#am');if(messages)messages.scrollTop=1e5;
+ }
+}
 function openAdd(m){const h=new Date().getHours();meal=m||(h<11?'b':h<16?'l':h<21?'d':'s');AF=null;
  sheet(`<div class="ad"><div class="adh"><h2>Добавить еду</h2><label class="dchip">📅 <span id="dl">${dlab(cur())}</span><input type="date" value="${cur()}" max="${today()}" onchange="pickDay(this.value)" aria-label="Дата" tabindex="-1"></label><button class="x" aria-label="Закрыть" onclick="closeSheet()">×</button></div><div class="seg">${MEALS.map(([k,n])=>`<button data-m="${k}" class="${k==meal?'on':''}" onclick="setMeal('${k}')">${n}</button>`).join('')}</div><div class="am" id="am"></div><div class="chips" id="fq"></div><div id="pv"></div><div class="cmp"><div class="menu" id="mn" hidden><button onclick="$('#fc').click()">Сделать фото</button><button onclick="$('#fg').click()">Из галереи</button></div><label class="pl" aria-label="Добавить фото">${PLUS}<input id="fg" type="file" accept="image/*" onchange="attach(this.files[0])"></label><div id="ai" class="ce" contenteditable="${OWNKB()?'false':'plaintext-only'}" onclick="kbOpen(this,event)" role="textbox" aria-multiline="true" aria-label="Что вы съели" data-ph="Еда и вес…" oninput="gr(this)"></div>${voiceButton('ai')}<button class="sb" aria-label="Отправить" onpointerdown="event.preventDefault()" onclick="sendFood()" disabled>${UP}</button><input id="fc" type="file" accept="image/*" capture="environment" hidden onchange="attach(this.files[0])"><input id="ff" type="file" accept=".jpg,.jpeg,.png,.webp,.heic,.heif" hidden onchange="attach(this.files[0])"></div></div>`);document.querySelector('#sheet .sh').classList.add('chat');loadHist();drawFq();setTimeout(loadHist,60)}
 function allFoods(){return S.foods.map(f=>[f.n,f.k,f.p,f.f,f.c,f.d]).concat(DB)}
