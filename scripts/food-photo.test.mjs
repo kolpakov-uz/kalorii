@@ -20,20 +20,25 @@ function setup(initial={}) {
     '#pv':{innerHTML:''},'#am':{scrollTop:0},'#mn':{hidden:true}
   };
   const requests=[];
+  const bubbles=[];
+  const snapshots=[],progress=[];
   let response=estimate;
   const context=vm.createContext({
     S:state,R:Math.round,VOICE:null,cur:()=>date,today:()=>date,
     items:day=>state.log[day]||[],$:selector=>fields[selector],
     MEALS:[['b','Завтрак'],['l','Обед'],['d','Ужин'],['s','Перекус']],
-    save(){},render(){},saveFood(){},kbFlush(){},kbSync(){},toast(){},esc:value=>value,
-    hasAPI:()=>true,allFoods:()=>[],setTimeout:callback=>{callback();return 1},
-    callAPI:async request=>{requests.push(JSON.parse(JSON.stringify(request)));return JSON.stringify(response)}
+    save(){snapshots.push(JSON.parse(JSON.stringify(state)))},render(){},saveFood(){},kbFlush(){},kbSync(){},toast(){},esc:value=>value,
+    hasAPI:()=>true,allFoods:()=>[],AbortController,clearTimeout(){},setTimeout:(callback,delay)=>{if(delay!==45000)callback();return 1},
+    document:{getElementById:id=>bubbles.find(bubble=>bubble.id===id)||null},
+    callAPI:async(request,options)=>{requests.push(JSON.parse(JSON.stringify(request)));const next=typeof response==='function'?await response(request,options,requests.length):response;if(next instanceof Error)throw next;return typeof next==='string'?next:JSON.stringify(next)}
   });
+  vm.runInContext(fs.readFileSync(new URL('../food-request.js',import.meta.url),'utf8'),context);
+  context.testBubble=()=>{let markup='';const bubble={textContent:'',get innerHTML(){return markup},set innerHTML(value){markup=value;progress.push(value)}};bubbles.push(bubble);return bubble};
   vm.runInContext(source,context);
   const run=code=>vm.runInContext(code,context);
-  run(`thumb=async()=>${JSON.stringify('data:image/jpeg;base64,'+thumbnail)};shrink=async()=>${JSON.stringify(fullImage)};am=()=>({innerHTML:'',textContent:''});think=()=>()=>{}`);
+  run(`thumb=async()=>${JSON.stringify('data:image/jpeg;base64,'+thumbnail)};shrink=async()=>${JSON.stringify(fullImage)};am=testBubble;think=()=>()=>{}`);
   return {
-    state,requests,run,context,
+    state,requests,run,context,snapshots,progress,
     reply(value){response=value},
     async send(text,photo=false){fields['#ai'].textContent=text;context.file=photo?{name:'waffle.jpg'}:null;run('AF=file');await run('sendFood()')},
     entries:()=>state.log[date]||[]
@@ -50,6 +55,70 @@ test('photo plus 50 grams sends the original image and saves calories and macros
   assert.equal(x.entries().length,1);
   const {g,k,p,f,c,m}=x.entries()[0];assert.deepEqual({g,k,p,f,c,m},{g:50,k:230,p:3,f:11,c:30,m:'b'});
   const body=foodRequest(x.requests[0]);assert.equal(pictures(body)[0].data,fullImage);assert.match(body.systemInstruction.parts[0].text,/Никогда не проси пользователя сообщить калории/);assert.match(body.systemInstruction.parts[0].text,/КБЖУ оценены по фото/);
+});
+
+test('temporary failure keeps the same photo and meal, shows continued processing and writes exactly once',async()=>{
+ const x=setup();x.reply((_request,_options,attempt)=>{
+  assert.equal(x.entries().length,0);
+  if(attempt<3)throw Object.assign(new Error('unavailable'),{kind:'unavailable',retryable:true});
+  return estimate;
+ });
+ await x.send('50 гр вафли',true);
+ assert.equal(x.requests.length,3);assert.deepEqual(x.requests[0],x.requests[1]);assert.deepEqual(x.requests[1],x.requests[2]);
+ assert.equal(x.entries().length,1);assert.equal(x.entries()[0].k,230);assert.ok(x.progress.some(markup=>markup.includes('Продолжаю считать…')));
+ assert.equal(x.state.hist[date+'|b'].filter(message=>message.r==='me').length,1);
+ for(const snapshot of x.snapshots){if(snapshot.log[date]?.length)assert.ok(snapshot.hist[date+'|b'].some(message=>message.ids?.includes(snapshot.log[date][0].id)))}
+});
+
+test('an invalid or partial batch is retried before any item is written and allows a larger complete reply',async()=>{
+ const x=setup();x.reply((_request,_options,attempt)=>{
+  assert.equal(x.entries().length,0);
+  if(attempt===1)return '{"actions":[';
+  if(attempt===2)return {actions:[estimate.actions[0],{op:'add',name:'Неполный продукт',grams:50}]};
+  return estimate;
+ });
+ await x.send('50 г вафли',true);
+ assert.equal(x.requests.length,3);assert.equal(x.requests[1].outputTokens,3200);assert.equal(x.requests[2].outputTokens,6400);assert.equal(x.entries().length,1);
+});
+
+test('a persistent outage retains a resumable request and double-tapping continue cannot duplicate it',async()=>{
+ const x=setup();x.reply(()=>{throw Object.assign(new Error('unavailable'),{kind:'unavailable',retryable:true})});await x.send('50 г вафли',true);
+ const notice=x.state.hist[date+'|b'].at(-1);assert.match(notice.lbl,/^request-/);assert.equal(x.requests.length,3);assert.equal(x.entries().length,0);assert.ok(x.progress.at(-1).includes('Продолжить расчёт'));
+ let complete;x.reply(()=>new Promise(resolve=>complete=resolve));
+ const pending=x.run(`retryFood('${notice.lbl}')`);await x.run(`retryFood('${notice.lbl}')`);
+ assert.equal(x.requests.length,4);complete(estimate);await pending;
+ assert.equal(x.entries().length,1);assert.equal(x.requests[3].image,fullImage);assert.equal(x.state.hist[date+'|b'].filter(message=>message.r==='me').length,1);
+});
+
+test('saved request can resume after backup and reload with the same photo caption and original day',async()=>{
+ const x=setup();x.reply(()=>{throw Object.assign(new Error('unavailable'),{kind:'unavailable',retryable:true})});await x.send('50 г вафли',true);
+ vm.runInContext(fs.readFileSync(new URL('../diary-backup.js',import.meta.url),'utf8'),x.context);
+ const restored=x.run('DiaryBackup.parse(DiaryBackup.stringify(S))');const y=setup(JSON.parse(JSON.stringify(restored)));
+ y.run('loadHist()');const notice=y.state.hist[date+'|b'].at(-1);await y.run(`retryFood('${notice.lbl}')`);
+ assert.equal(y.entries().length,1);assert.equal(y.requests[0].text,'50 г вафли');assert.equal(y.requests[0].image,thumbnail);assert.match(y.requests[0].context,/2026-11-11/);
+});
+
+test('daily quota pauses immediately with a clear message and keeps the request available',async()=>{
+ const x=setup();x.reply(()=>{throw Object.assign(new Error('quota'),{kind:'quota',status:429,retryable:false})});await x.send('50 г вафли',true);
+ assert.equal(x.requests.length,1);assert.equal(x.entries().length,0);assert.match(x.state.hist[date+'|b'].at(-1).t,/Лимит ИИ на сегодня исчерпан/);assert.ok(x.progress.at(-1).includes('Продолжить расчёт'));
+});
+
+test('an interrupted local batch rolls back completely before a manual retry',async()=>{
+ const x=setup();let writes=0;x.context.saveFood=()=>{if(++writes===2)throw Error('fixture failure')};
+ x.reply({actions:[estimate.actions[0],{...estimate.actions[0],name:'Другая порция'}]});await x.send('Две вафли',true);
+ assert.equal(x.requests.length,1);assert.equal(x.entries().length,0);const notice=x.state.hist[date+'|b'].at(-1);assert.match(notice.t,/запись не сохранилась/);
+ await x.run(`retryFood('${notice.lbl}')`);assert.equal(x.entries().length,2);assert.equal(x.requests.length,2);
+});
+
+test('an imported invalid retry label is never turned into executable markup',()=>{
+ const x=setup({hist:{[date+'|b']:[{r:'me',t:'50 г вафли'},{r:'ai',lbl:'request-x-\'onclick=bad',t:'Запрос сохранён'}]}});
+ x.run('loadHist()');assert.equal(x.run('foodJobs.size'),0);
+});
+
+test('a generic failure written by the model is retried while a useful clarification is shown',async()=>{
+ const x=setup();x.reply((_request,_options,attempt)=>attempt===1?{actions:[],reply:'Не удалось посчитать. Попробуйте позже.'}:estimate);await x.send('50 г вафли',true);
+ assert.equal(x.requests.length,2);assert.equal(x.entries().length,1);
+ const y=setup();y.reply({actions:[],reply:'Какое блюдо на фото?'});await y.send('50 г',true);assert.equal(y.requests.length,1);assert.equal(y.entries().length,0);assert.equal(y.state.hist[date+'|b'].at(-1).t,'Какое блюдо на фото?');
 });
 
 test('retry after a failed recognition retains the full photo and original weight and produces the first entry',async()=>{

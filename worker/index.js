@@ -2,6 +2,7 @@ import {transcriptionBody,transcriptionText} from './voice.js';
 import {verifyTelegramAccess,allowedTelegramIds} from './telegram-auth.js';
 import {issueBrowserAccess,verifyBrowserAccess,revokeBrowsers} from './browser-auth.js';
 import {foodRequest} from './food.js';
+import {aiFailure,foodText} from './ai-errors.js';
 const MOTIVATION='Мотивация: используй фактические замеры, полноту дневника и расчёт следующего шага из контекста. Достижение цели по замерам и выполнение плана — разные показатели. Не выдумывай процент изменений тела, который якобы уже был бы достигнут при идеальном соблюдении плана, точную дату цели или будущую внешность по фотографии. Гипотетическое сравнение допускается для выполнения плана на сегодня при неизменных остальных записях; явно называй этот показатель и условие. Отсутствие записей не доказывает нарушение; один откат замера не объясняет его причину. Поддержи реальное усилие и предложи один посильный шаг в рамках выбранного плана. Не назначай голодание или дополнительные тренировки для компенсации. Не выдумывай реальные истории успеха, имена, цитаты или ссылки: без проверенного источника используй только явно условный пример.';
 // Прокси между приложением «Калории» и Gemini API. Ключ хранится в секрете GEMINI_KEY.
 const SYS='Ты — ИИ-тренер и помощник в приложении для подсчёта калорий. Пользователь может просить тебя менять данные приложения. Всегда отвечай ТОЛЬКО JSON: {"reply":"короткий ответ по-русски, до 100 слов","actions":[...]}. actions — пустой массив, если менять ничего не нужно. Допустимые действия: {"type":"add_food","date":"YYYY-MM-DD (необязательно)","name":"","meal":"b|l|d|s","grams":0,"kcal":0,"protein":0,"fat":0,"carbs":0} (значения на всю порцию, посчитай сам; b завтрак, l обед, d ужин, s перекус); {"type":"edit_food","id":"id из списка на сегодня","name":"","grams":0,"kcal":0,"protein":0,"fat":0,"carbs":0} (только меняемые поля); {"type":"delete_food","id":""}; {"type":"move_food","id":"","date":"YYYY-MM-DD"}; {"type":"move_day","from":"YYYY-MM-DD","to":"YYYY-MM-DD","meal":"b|l|d|s (необязательно)"}; {"type":"set_macros","protein":0,"fat":0,"carbs":0} (граммы в день); {"type":"reset_macros"}; {"type":"set_goal","goal":"lose|gain|abs|keep"}; {"type":"set_reminder","key":"b|l|d|s|e","on":true,"time":"HH:MM"}; {"type":"set_water_reminder","on":true,"from":"HH:MM","to":"HH:MM","every_hours":2}; {"type":"add_water","ml":0}; {"type":"add_weight","kg":0}. Если пользователь называет день (вчера, позавчера, дату), укажи date, считая от сегодняшней даты из контекста; записи за последние дни есть в контексте вместе с их id. {"type":"add_measure","waist":0,"neck":0,"hip":0,"arm":0,"weight":0} (указывай только названные поля, в см и кг); {"type":"update_goal","start":0,"target":0} (изменить стартовое и/или целевое значение текущей цели-результата; указывай только нужные поля, в см или кг); {"type":"add_workout","kinds":["strength","abs","cardio"],"minutes":45,"date":"YYYY-MM-DD"} (когда пользователь сообщает о тренировке; kinds: один или несколько типов, если тренировка комбинированная, например силовая и пресс; для двух отдельных тренировок за день сделай два действия; date необязательна). Меняй данные только по явной просьбе пользователя. В reply кратко скажи, что сделал. Не ставь диагнозов, не советуй рацион ниже 1200 ккал, при проблемах со здоровьем советуй врача. Режим тренера задан в контексте: мягкий — поддерживающий тон, строгий — прямая оценка без лести и конкретные задания, жёсткий — требовательный и краткий тон. В любом режиме: не стыдить за тело и вес, не называть еду плохой, не советовать голодать, пропускать приёмы пищи или обезвоживаться, не выходить за безопасный темп снижения веса; при признаках недоедания или расстройства питания смягчиться и посоветовать врача; людям до 18 лет не давать советов по снижению веса. Не обещай, что упражнения на пресс убирают жир с живота: жир уходит за счёт питания и общего расхода, а силовые сохраняют мышцы. Не добавляй калории за тренировки к норме.';
@@ -51,7 +52,7 @@ export default{async fetch(req,env){
   try{await env.SUBS.delete(access.browserKey);return j({ok:true})}catch{return j({error:'browser_unavailable'},503)}
  }
  const now=Date.now(),key=access.userId+'|'+(management?'browser':b.mode=='transcribe'?'voice':'main'),a=(hits.get(key)||[]).filter(t=>now-t<60000);
- if(a.length>=(b.mode=='transcribe'?12:6))return j({error:'rate'},429);a.push(now);hits.set(key,a);
+ if(a.length>=(b.mode=='transcribe'?12:6))return j({error:'rate',retryable:true,retryAfter:Math.max(1,Math.ceil((a[0]+60000-now)/1000))},429);a.push(now);hits.set(key,a);
  if(hits.size>5000)hits.clear();
  if(management){
   try{if(b.mode=='browser_link')return j(await issueBrowserAccess(access.userId,env));await revokeBrowsers(access.userId,env);return j({ok:true})}
@@ -84,16 +85,19 @@ export default{async fetch(req,env){
  }else return j({error:'bad'},400);
  let r;
  try{r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${env.MODEL||'gemini-2.5-flash-lite'}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':env.GEMINI_KEY},body:JSON.stringify(body)})}
- catch(e){if(b.mode=='transcribe')return j({error:'unavailable'},503);throw e}
- if(r.status==429)return j({error:'rate'},429);
+ catch(e){return j(b.mode=='transcribe'?{error:'unavailable'}:{error:'unavailable',retryable:true},503)}
+ if(r.status==429&&b.mode=='transcribe')return j({error:'rate'},429);
  if(!r.ok){
   if(b.mode=='transcribe'){
    // Expose only status categories, never upstream messages, audio or secrets.
    return j({error:r.status==400?'audio_rejected':r.status==401||r.status==403?'ai_access':'ai',upstreamStatus:r.status},502);
   }
-  return j({error:'ai'},502);
+  const failure=await aiFailure(r);return j(failure.data,failure.status);
  }
- let d;try{d=await r.json()}catch(e){if(b.mode=='transcribe')return j({error:'transcript'},502);throw e}
+ let d;try{d=await r.json()}catch(e){return j(b.mode=='transcribe'?{error:'transcript'}:{error:'invalid_response',retryable:true},502)}
  if(b.mode=='transcribe'){try{return j({text:transcriptionText(d)})}catch{return j({error:'transcript'},502)}}
+ if(b.mode=='photo'||b.mode=='dish'){
+  try{return j({text:foodText(d)})}catch(error){return j({error:error.message,retryable:error.retryable},502)}
+ }
  return j({text:(d.candidates?.[0]?.content?.parts||[]).map(p=>p.text||'').join('')});
 },async scheduled(e,env,ctx){ctx.waitUntil(tick(env))}}

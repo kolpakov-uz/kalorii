@@ -38,7 +38,7 @@ export function foodRequest(input) {
   }
   // A conversation may start inside the retained window with an assistant reply.
   while (contents.length && contents[0].role === 'model') contents.shift();
-  const parts = input.mode === 'photo' ? [imagePart(input.image)] : [];
+  const parts = input.mode === 'photo' ? [imagePart(input.image,input.mimeType)] : [];
   const context = String(input.context || '').slice(0,3500);
   const portion = Number(input.portion);
   const fraction = portion > 0 && portion <= 1 ? '\nДоля порции из сообщения: '+portion : '';
@@ -47,6 +47,6 @@ export function foodRequest(input) {
   return {
     systemInstruction:{parts:[{text:FOOD+(hasPhoto ? '\n'+PHOTO : '')}]},
     contents,
-    generationConfig:{responseMimeType:'application/json',maxOutputTokens:1600,temperature:0}
+    generationConfig:{responseMimeType:'application/json',maxOutputTokens:[3200,6400].includes(input.outputTokens)?input.outputTokens:1600,temperature:0}
   };
 }

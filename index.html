@@ -239,6 +239,7 @@ button{transition:transform .12s ease,filter .12s,background .2s,opacity .2s}
 .ov.food-dialog .sh.chat{width:100%;max-width:none;height:100%!important;max-height:none!important;margin:0;border-radius:0;padding:calc(14px + max(0px,var(--food-safe-top) - var(--food-offset-top,0px))) 16px 0;padding-bottom:calc(10px + var(--food-safe-bottom))!important;animation:none;transition:none}
 .food-dialog .grab{display:none}.food-dialog .ad{width:100%;max-width:680px;margin:0 auto}
 .food-dialog .adh,.food-dialog .seg,.food-dialog #fq,.food-dialog #pv,.food-dialog .cmp,.food-dialog .voice-status{flex-shrink:0}
+.food-progress{display:flex;align-items:center;gap:10px;line-height:1.5}.food-progress .dots{flex-shrink:0}.food-retry{display:block;margin-top:12px;padding:9px 13px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--acc);font:700 13px Manrope,system-ui,sans-serif;cursor:pointer}
 @media(max-width:360px){.food-dialog .adh{flex-wrap:wrap;gap:8px}.food-dialog .adh h2{font-size:20px}.food-dialog .dchip{font-size:12px;padding:8px}.food-dialog .seg{margin-top:8px}}
 .access-link{display:block;text-align:center;text-decoration:none;color:var(--ink)}nav.tabs[hidden]{display:none}
 .goal-top{display:flex;align-items:center;justify-content:space-between;gap:9px;flex-wrap:wrap}.goal-delta{border-radius:9px;padding:5px 8px;font-size:11px;font-weight:700;white-space:nowrap}.goal-delta.down{color:color-mix(in srgb,var(--c) 80%,var(--ink));background:color-mix(in srgb,var(--c) 10%,var(--card))}.goal-delta.up{color:var(--acc);background:color-mix(in srgb,var(--acc) 10%,var(--card))}.goal-delta.neutral{color:var(--mut);background:var(--bg)}
@@ -255,6 +256,7 @@ button{transition:transform .12s ease,filter .12s,background .2s,opacity .2s}
 <input type="file" id="diary-file" accept="application/json,.json" hidden onchange="previewDiary(this.files[0])">
 <script src="goal-progress.js?v=motivation1"></script>
 <script src="goal-ui.js?v=motivation1"></script>
+<script src="food-request.js?v=retry1"></script>
 <script src="diary-backup.js"></script>
 <script src="diary-transfer.js"></script>
 <script src="notifications.js"></script>
@@ -356,6 +358,7 @@ function saveProfile(){const g=i=>+$('#'+i).value,p={sex:$('#s_sex').value,a:g('
 let meal='b';
 let AF=null,FQ=[];
 const foodPhotoImages=new WeakMap();
+const foodJobs=new Map();
 const PLUS='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',UP='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
 function thumb(f){return new Promise(ok=>{const i=new Image();i.onload=()=>{const k=Math.min(1,240/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=Math.round(i.width*k);c.height=Math.round(i.height*k);c.getContext('2d').drawImage(i,0,0,c.width,c.height);ok(c.toDataURL('image/jpeg',.55))};i.onerror=()=>ok('');i.src=URL.createObjectURL(f)})}
 function sbtn(t){const b=t.closest('.cmp,.send').querySelector('.sb');if(b)b.disabled=!!VOICE||(!val(t)&&!AF)}
@@ -373,14 +376,20 @@ function drawFq(){FQ=freq(meal);$('#fq').innerHTML=FQ.length?FQ.map((e,i)=>`<but
 function pushH(m,k){(S.hist[k]=S.hist[k]||[]).push(m);S.hist[k]=S.hist[k].slice(-40);save()}
 function pills(i){return `<div class="pl4">${[['🔥','Калории',i.k,''],['🥩','Белки',i.p,' г'],['🥑','Жиры',i.f,' г'],['🍞','Углеводы',i.c,' г']].map(([e,l,v,u],j)=>`<span style="animation-delay:${j*90}ms"><i>${e}</i><small>${l}</small><b>${v}${u}</b></span>`).join('')}</div>`}
 function resHtml(ids,day,m,lbl){const L=items(day).filter(x=>ids.includes(x.id));return L.map(i=>`<div class="rc"><div class="rt2"><div><b>${esc(i.n)}</b><small>${i.g} г</small></div><button class="x" aria-label="Удалить" onclick="rmE('${i.id}',this)">×</button></div>${pills(i)}</div>`).join('')+(L.length>1?`<small class="ok">Итого: ${L.reduce((a,x)=>a+x.k,0)} ккал</small>`:'')+`<small class="ok">✓ ${lbl||'Добавлено'} · ${MEALS.find(x=>x[0]==m)[1]}</small>`}
-function msgHtml(m){return m.r=='me'?`<div class="bub me">${m.img?`<img class="ph" alt="" src="${m.img}">`:''}${esc(m.t||'')}</div>`:(m.t?`<div class="bub ai">${esc(m.t)}</div>`:`<div class="bub ai">${resHtml(m.ids,cur(),meal,m.lbl)}</div>`)}
-function loadHist(){const c=$('#am'),H=(S.hist[hk()]||[]).filter(m=>m.r=='me'||m.t||m.ids.some(id=>items(cur()).some(x=>x.id==id))),L=items(cur()).filter(x=>x.m==meal),ref=new Set(H.flatMap(m=>m.ids||[])),un=L.filter(x=>!ref.has(x.id)),h=(un.length?[{r:'ai',ids:un.map(x=>x.id)}]:[]).concat(H);
+function msgHtml(m){
+ if(m.r==='me')return `<div class="bub me">${m.img?`<img class="ph" alt="" src="${m.img}">`:''}${esc(m.t||'')}</div>`;
+ const job=foodJobs.get(m.lbl);
+ if(job)return `<div class="bub ai" id="${job.id}">${foodJobContent(job)}</div>`;
+ if(m.ids?.length)return `<div class="bub ai">${resHtml(m.ids,cur(),meal,m.lbl)}${m.t?`<small class="ok" style="color:var(--ink)">${esc(m.t)}</small>`:''}</div>`;
+ return `<div class="bub ai">${esc(m.t||'')}</div>`;
+}
+function loadHist(){restoreFoodJobs(cur(),meal);const c=$('#am'),H=(S.hist[hk()]||[]).filter(m=>m.r=='me'||m.t||m.ids.some(id=>items(cur()).some(x=>x.id==id))),L=items(cur()).filter(x=>x.m==meal),ref=new Set(H.flatMap(m=>m.ids||[])),un=L.filter(x=>!ref.has(x.id)),h=(un.length?[{r:'ai',ids:un.map(x=>x.id)}]:[]).concat(H);
  c.innerHTML=h.length?h.map(msgHtml).join(''):'<p class="hint">Напишите, что вы съели, или добавьте фото. Я посчитаю КБЖУ и внесу в выбранный день.</p>';c.scrollTop=1e5}
 function setMeal(m){meal=m;document.querySelectorAll('.seg button').forEach(b=>b.classList.toggle('on',b.dataset.m==m));loadHist();drawFq()}
 function pickDay(v){if(!v)return;setDay(v);const l=$('#dl');if(l)l.textContent=dlab(cur());loadHist();drawFq()}
 function am(h,cls){const c=$('#am'),h0=c.querySelector('.hint');if(h0)h0.remove();const b=document.createElement('div');b.className='bub in '+cls;b.innerHTML=h;c.append(b);c.scrollTop=1e5;return b}
-function think(w){const ph=['Читаю запрос…','Считаю КБЖУ…','Вношу в дневник…'];let i=0;w.innerHTML='<span class="dots"><i></i><i></i><i></i></span><small class="th">'+ph[0]+'</small>';const t=setInterval(()=>{i=Math.min(i+1,2);const e=w.querySelector('.th');if(e){e.style.opacity=0;setTimeout(()=>{e.textContent=ph[i];e.style.opacity=1},150)}},900);return()=>clearInterval(t)}
-function addEntry(o,d,day){const L=items(day);S.log[day]=L;o.id=Date.now()+Math.random().toString(36).slice(2,6);L.push(o);if(d!==false)saveFood(o.n,o.g,o.k,o.p,o.f,o.c,d||'');save();render();return o.id}
+function think(w){w.innerHTML='<span class="dots"><i></i><i></i><i></i></span><small class="th" role="status">Считаю КБЖУ…</small>';return()=>{}}
+function addEntry(o,d,day,commit=true){const L=items(day);S.log[day]=L;o.id=Date.now()+Math.random().toString(36).slice(2,6);L.push(o);if(d!==false)saveFood(o.n,o.g,o.k,o.p,o.f,o.c,d||'');if(commit){save();render()}return o.id}
 function rmE(id,b){S.log[cur()]=items(cur()).filter(x=>x.id!=id);save();render();const r=b.closest('.rc');r.style.cssText='opacity:.3;transform:scale(.97)';b.remove()}
 function quick(i){const e=FQ[i].i,k=hk(),day=cur(),mk=meal;am(esc(e.n),'me');pushH({r:'me',t:e.n},k);const id=addEntry({m:mk,n:e.n,g:e.g,k:e.k,p:e.p,f:e.f,c:e.c},false,day),w=am('','ai'),stop=think(w);pushH({r:'ai',ids:[id]},k);sleep(800).then(()=>{stop();w.innerHTML=resHtml([id],day,mk)})}
 function attach(f){if(!f)return;AF=f;sbtn($('#ai'));$('#mn').hidden=true;$('#pv').innerHTML=`<div class="pvi"><img alt="" src="${URL.createObjectURL(f)}"><button class="x" aria-label="Убрать фото" onclick="AF=null;$('#pv').innerHTML='';sbtn($('#ai'))">×</button></div>`;$('#ai').dataset.ph='Вес или состав…'}
@@ -403,28 +412,56 @@ const cl=(v,m)=>Math.min(m,Math.max(0,+v||0));
 function lastEntry(day,mk){const L=items(day).filter(x=>x.m==mk);return L.length?L.at(-1):null}
 function scaleEntry(e,g){const f=g/e.g;e.k=R(e.k*f);e.p=R(e.p*f);e.f=R(e.f*f);e.c=R(e.c*f);e.g=g}
 function localEdit(e,pf,pg,text,day){if(DEL.test(text)){S.log[day]=items(day).filter(x=>x.id!=e.id);save();render();return{ids:[],msg:'Удалено: '+e.n}}scaleEntry(e,Math.max(1,Math.round(pf?e.g*pf:pg)));save();render();return{ids:[e.id],lbl:'Исправлено'}}
-function fromCache(c,pf,pg,text,day,mk){const g=Math.max(1,Math.round((pg||c.g)*(pf||1))),id=addEntry({m:mk,n:c.n,g,k:R(c.k*g/100),p:R(c.p*g/100),f:R(c.f*g/100),c:R(c.c*g/100)},text,day);return{ids:[id],lbl:'Добавлено'}}
+function fromCache(c,pf,pg,text,day,mk,commit=true){const g=Math.max(1,Math.round((pg||c.g)*(pf||1))),id=addEntry({m:mk,n:c.n,g,k:R(c.k*g/100),p:R(c.p*g/100),f:R(c.f*g/100),c:R(c.c*g/100)},text,day,commit);return{ids:[id],lbl:'Добавлено'}}
 function normAct(a){if(!a||typeof a!='object')return null;const T={add_food:'add',edit_food:'edit',delete_food:'delete'},op=a.op||T[a.type]||((a.name||a.n)&&a.type==null?'add':null);if(!op)return null;const r={...a,op};if(op=='add'){const g=+a.grams||+a.g||100;r.name=a.name||a.n;r.grams=g;[['kcal100','kcal'],['protein100','protein'],['fat100','fat'],['carbs100','carbs']].forEach(([p,t])=>{if(r[p]==null&&a[t]!=null)r[p]=(+a[t]||0)/g*100})}return r}
-function applyDish(o,day,mk,text,key,photoGrams=null){const A=(Array.isArray(o.actions)?o.actions:(Array.isArray(o.items)?o.items.map(x=>({op:'add',name:x.name,grams:x.grams,kcal100:(+x.kcal||0)/(+x.grams||100)*100,protein100:(+x.protein||0)/(+x.grams||100)*100,fat100:(+x.fat||0)/(+x.grams||100)*100,carbs100:(+x.carbs||0)/(+x.grams||100)*100})):[])).map(normAct).filter(Boolean),ids=[],adds=A.filter(x=>x.op=='add').length;let ne=0,nd=0,na=0;
+function foodResponse(raw,day){
+ const response=JSON.parse(raw.replace(/```json|```/g,'').trim());
+ if(!response||typeof response!=='object'||Array.isArray(response))throw FoodRequest.invalid();
+ const source=Array.isArray(response.actions)?response.actions:Array.isArray(response.items)?response.items.map(item=>({...item,op:'add'})):null;
+ if(!source)throw FoodRequest.invalid();
+ const amount=value=>(typeof value==='number'||typeof value==='string'&&value.trim()!=='')&&Number.isFinite(Number(value))&&Number(value)>=0;
+ const actions=source.map(action=>{
+  if(!action||typeof action!=='object')throw FoodRequest.invalid();
+  for(const field of ['grams','g','kcal','protein','fat','carbs','kcal100','protein100','fat100','carbs100'])if(action[field]!=null&&!amount(action[field]))throw FoodRequest.invalid();
+  if(action.grams!=null&&Number(action.grams)<=0||action.g!=null&&Number(action.g)<=0)throw FoodRequest.invalid();
+  const normalized=normAct(action);
+  if(!normalized||!['add','edit','delete'].includes(normalized.op))throw FoodRequest.invalid();
+  if(normalized.op==='add'){
+   if(typeof normalized.name!=='string'||!normalized.name.trim()||!amount(normalized.grams)||Number(normalized.grams)<=0)throw FoodRequest.invalid();
+   if(!['kcal100','protein100','fat100','carbs100'].every(field=>amount(normalized[field])))throw FoodRequest.invalid();
+  }else{
+   if(typeof normalized.id!=='string'||!items(day).some(entry=>entry.id===normalized.id))throw FoodRequest.invalid();
+   if(normalized.op==='edit'&&!['name','grams','kcal100','protein100','fat100','carbs100'].some(field=>normalized[field]!=null))throw FoodRequest.invalid();
+  }
+  return normalized;
+ });
+ if(!actions.length){
+  const reply=typeof response.reply==='string'?response.reply.trim():'';
+  const vagueFailure=/^(?:не удалось (?:посчитать|подсчитать|рассчитать|обработать запрос)(?:[.,!…\s]+попробуйте (?:ещ[её] раз|позже))?|попробуйте (?:ещ[её] раз|позже))[.!…\s]*$/i.test(reply);
+  if(!reply||vagueFailure||/(записал|записан|добавил|добавлен|внес|внёс)/i.test(reply))throw FoodRequest.invalid();
+ }
+ return {...response,actions};
+}
+function applyDish(o,day,mk,text,key,photoGrams=null,commit=true){const A=(Array.isArray(o.actions)?o.actions:(Array.isArray(o.items)?o.items.map(x=>({op:'add',name:x.name,grams:x.grams,kcal100:(+x.kcal||0)/(+x.grams||100)*100,protein100:(+x.protein||0)/(+x.grams||100)*100,fat100:(+x.fat||0)/(+x.grams||100)*100,carbs100:(+x.carbs||0)/(+x.grams||100)*100})):[])).map(normAct).filter(Boolean),ids=[],adds=A.filter(x=>x.op=='add').length;let ne=0,nd=0,na=0;
  for(const a of A.slice(0,8)){
   if(a.op=='add'){
    const requestedGrams=adds===1&&photoGrams?photoGrams:+a.grams||100;
    const g=Math.round(Math.min(3000,Math.max(1,requestedGrams))),n=String(a.name||text||'Блюдо').slice(0,60);
    const k1=cl(a.kcal100,950),p1_=cl(a.protein100,100),f1_=cl(a.fat100,100),c1=cl(a.carbs100,100);
-   ids.push(addEntry({m:mk,n,g,k:R(k1*g/100),p:R(p1_*g/100),f:R(f1_*g/100),c:R(c1*g/100)},text,day));na++;
+   ids.push(addEntry({m:mk,n,g,k:R(k1*g/100),p:R(p1_*g/100),f:R(f1_*g/100),c:R(c1*g/100)},text,day,commit));na++;
    if(key&&adds==1)S.dc[key]={n,g,k:k1,p:p1_,f:f1_,c:c1};
   }
   else if(a.op=='edit'){const e=items(day).find(x=>x.id==a.id);if(!e)continue;const g=a.grams!=null?Math.round(Math.min(3000,Math.max(1,+a.grams))):e.g;if(a.kcal100!=null||a.protein100!=null||a.fat100!=null||a.carbs100!=null){const pk=x=>x/e.g*100;e.k=R(cl(a.kcal100!=null?a.kcal100:pk(e.k),950)*g/100);e.p=R(cl(a.protein100!=null?a.protein100:pk(e.p),100)*g/100);e.f=R(cl(a.fat100!=null?a.fat100:pk(e.f),100)*g/100);e.c=R(cl(a.carbs100!=null?a.carbs100:pk(e.c),100)*g/100);e.g=g}else scaleEntry(e,g);if(a.name)e.n=String(a.name).slice(0,60);ids.push(e.id);ne++}
   else if(a.op=='delete'){const e=items(day).find(x=>x.id==a.id);if(!e)continue;S.log[day]=items(day).filter(x=>x.id!=a.id);nd++}}
- save();render();return{ids,lbl:ne&&!na?'Исправлено':'Добавлено',msg:nd&&!ids.length?'Запись удалена':'',reply:String(o.reply||'')}}
+ if(commit){save();render()}return{ids,lbl:ne&&!na?'Исправлено':'Добавлено',msg:nd&&!ids.length?'Запись удалена':'',reply:String(o.reply||'')}}
 function foodCtx(day,mk){const L=items(day).filter(x=>x.m==mk),kn=S.foods.slice(0,25).map(x=>`${x.n}: ${x.k} ккал, Б ${x.p}, Ж ${x.f}, У ${x.c} на 100 г`).join('; ');return `Дата: ${day}. Приём пищи: ${MEALS.find(x=>x[0]==mk)[1]}. Записи этого приёма (id: название, г, ккал): ${L.map(x=>`${x.id}: ${x.n}, ${x.g} г, ${x.k} ккал`).join('; ')||'нет'}.\nИзвестные блюда пользователя: ${kn||'нет'}.`}
-function foodHistory(day,mk,newPhoto){
- const history=(S.hist[day+'|'+mk]||[]).slice(-8);
+function foodHistory(day,mk,newPhoto,before=Infinity){
+ const history=(S.hist[day+'|'+mk]||[]).slice(0,before).filter(message=>!String(message.lbl||'').startsWith('request-')).slice(-8);
  const photo=newPhoto?null:history.findLast(message=>message.r==='me'&&message.img);
  return history.map(message=>{
   const role=message.r==='me'?'user':'model';
   const records=items(day).filter(entry=>(message.ids||[]).includes(entry.id));
-  const text=message.t||(role==='model'&&records.length?'Запись выполнена: '+JSON.stringify(records):'');
+  const text=role==='model'&&records.length?'Запись выполнена: '+JSON.stringify(records)+(message.t?'\n'+message.t:''):message.t||'';
   const result={role,text};
   if(message===photo){
    const cached=foodPhotoImages.get(message);
@@ -433,6 +470,74 @@ function foodHistory(day,mk,newPhoto){
   }
   return result;
  }).filter(message=>message.text||message.image);
+}
+function foodJobContent(job){
+ const status=`<span class="food-progress" role="status" aria-live="polite" aria-busy="${job.busy}">${job.busy?'<span class="dots"><i></i><i></i><i></i></span>':''}<span>${esc(job.busy?job.status:job.notice.t)}</span></span>`;
+ return status+(job.busy?'':`<button class="food-retry" onclick="retryFood('${job.id}')">Продолжить расчёт</button>`);
+}
+function paintFoodJob(job){const bubble=document.getElementById(job.id);if(bubble)bubble.innerHTML=foodJobContent(job)}
+function registerFoodJob(request,notice,day,selectedMeal,text){
+ const photoConversation=request.mode==='photo'||request.history.some(message=>message.image);
+ const job={
+  id:notice.lbl,
+  key:day+'|'+selectedMeal,
+  day,meal:selectedMeal,text,request,notice,
+  busy:false,
+  cacheKey:photoConversation?'':normKey(text),
+  photoGrams:photoConversation&&!parsePortion(text)?parseGrams(text,true):null
+ };
+ foodJobs.set(job.id,job);return job;
+}
+function restoreFoodJobs(day,selectedMeal){
+ const history=S.hist[day+'|'+selectedMeal]||[];
+ for(let index=0;index<history.length;index++){
+  const notice=history[index];
+  if(notice.r!=='ai'||!/^request-[a-z0-9]+-[a-z0-9]{1,12}$/.test(notice.lbl||'')||foodJobs.has(notice.lbl))continue;
+  const source=history.slice(0,index).findLast(message=>message.r==='me');
+  if(!source)continue;
+  const sourceIndex=history.indexOf(source),image=String(source.img||'').match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+  const request={mode:image?'photo':'dish',text:source.t||'',context:foodCtx(day,selectedMeal),portion:parsePortion(source.t||''),history:foodHistory(day,selectedMeal,!!image,sourceIndex)};
+  if(image){request.image=image[2];request.mimeType=image[1]}
+  registerFoodJob(request,notice,day,selectedMeal,source.t||'');
+ }
+}
+async function runFoodJob(job){
+ if(job.busy)return;
+ job.busy=true;sendFood.b=1;job.status='Считаю КБЖУ…';paintFoodJob(job);
+ try{
+  const response=await FoodRequest.run((signal,attempt,previousError)=>{
+   if(previousError?.kind==='invalid_response'||previousError?.name==='SyntaxError')job.outputTokens=Math.min(6400,(job.outputTokens||1600)*2);
+   const request=job.outputTokens?{...job.request,outputTokens:job.outputTokens}:job.request;
+   return callAPI(request,{signal});
+  },raw=>foodResponse(raw,job.day),status=>{job.status=status;paintFoodJob(job)});
+  // Apply the validated batch once, after every retry has finished.
+  const previous=JSON.parse(JSON.stringify({log:S.log,foods:S.foods,dc:S.dc}));
+  let result;
+  try{
+   const known=!response.actions.length&&job.cacheKey&&S.foods.find(food=>normKey(food.n)===job.cacheKey);
+   result=known
+    ?fromCache({n:known.n,g:100,k:known.k,p:known.p,f:known.f,c:known.c},parsePortion(job.text),parseGrams(job.text),job.text,job.day,job.meal,false)
+    :applyDish(response,job.day,job.meal,job.text,job.cacheKey,job.photoGrams,false);
+  }catch(error){
+   Object.assign(S,previous);save();render();
+   throw Object.assign(new Error('save_failed'),{kind:'save_failed',retryable:false});
+  }
+  job.notice.ids=result.ids;
+  job.notice.lbl=result.lbl;
+  job.notice.t=result.ids.length?result.reply:result.msg||result.reply;
+  foodJobs.delete(job.id);save();render();
+  if($('#am')&&hk()===job.key)loadHist();
+ }catch(error){
+  job.notice.t=FoodRequest.message(error);save();
+ }finally{
+  job.busy=false;sendFood.b=0;paintFoodJob(job);
+ }
+}
+async function retryFood(id){
+ const job=foodJobs.get(id);
+ if(!job||job.busy)return;
+ if(sendFood.b)return toast('Дождитесь завершения текущего расчёта.');
+ return runFoodJob(job);
 }
 async function sendFood(){
  if(VOICE)return toast('Сначала завершите голосовой ввод.');
@@ -460,16 +565,12 @@ async function sendFood(){
   }else if(hasAPI()){
    const request={mode:file?'photo':'dish',text,context:foodCtx(day,selectedMeal),portion:fraction,history};
    if(file){request.image=await shrink(file);foodPhotoImages.set(userMessage,request.image)}
-   const raw=await callAPI(request);
-   const response=JSON.parse(raw.replace(/```json|```/g,''));
-   const photoGrams=photoConversation&&!fraction?parseGrams(text,true):null;
-   result=applyDish(response,day,selectedMeal,text,photoConversation?'':key,photoGrams);
-   if(!result.ids.length&&!result.msg){
-    const known=!photoConversation&&key&&S.foods.find(food=>normKey(food.n)===key);
-    if(known)result=fromCache({n:known.n,g:100,k:known.k,p:known.p,f:known.f,c:known.c},fraction,grams,text,day,selectedMeal);
-    else if(result.reply&&!/(записал|записан|добавил|добавлен|внес|внёс)/i.test(result.reply))throw{code:'reply',text:result.reply};
-    else throw{code:'norec'};
-   }
+   const id='request-'+Date.now().toString(36)+'-'+(Math.random().toString(36).slice(2,8)||'0');
+   const notice={r:'ai',lbl:id,t:'Исходное сообщение сохранено в переписке. Расчёт можно продолжить.'};
+   for(const [token,previous] of foodJobs)if(!previous.busy&&!(S.hist[previous.key]||[]).includes(previous.notice))foodJobs.delete(token);
+   const job=registerFoodJob(request,notice,day,selectedMeal,text);
+   pushH(notice,historyKey);bubble.id=id;stop();
+   await runFoodJob(job);return;
   }else if(!file){
    const gramsPerPortion=grams||100,query=key.split(' ')[0],food=query&&allFoods().find(row=>row[0].toLowerCase().includes(query));
    if(!food)throw{code:'nb'};
@@ -484,7 +585,7 @@ async function sendFood(){
  }catch(error){
   await sleep(Math.max(0,900-(Date.now()-started)));stop();
   if(error.code==='reply')pushH({r:'ai',t:error.text},historyKey);
-  bubble.textContent=error.code==='reply'?error.text:error.code==='rl'?'Слишком много запросов, подождите минуту.':error.code==='na'?'Для фото нужно подключить ИИ.':error.code==='nb'?'ИИ не подключён, и такого продукта нет в базе.':error.code==='norec'?'Запись не внесена: ИИ не вернул данные блюда. Напишите ещё раз, например «сюзьма 5%, 350 г».':'Не удалось посчитать. Попробуйте ещё раз.';
+  bubble.textContent=error.code==='reply'?error.text:error.code==='na'?'Для фото нужно подключить ИИ.':error.code==='nb'?'ИИ не подключён, и такого продукта нет в базе.':file?'Фотографию не удалось прочитать. Выберите снимок ещё раз.':FoodRequest.message(error);
  }finally{
   sendFood.b=0;
   const messages=$('#am');if(messages)messages.scrollTop=1e5;
@@ -494,7 +595,13 @@ function openAdd(m){const h=new Date().getHours();meal=m||(h<11?'b':h<16?'l':h<2
  sheet(`<div class="ad"><div class="adh"><h2>Добавить еду</h2><label class="dchip">📅 <span id="dl">${dlab(cur())}</span><input type="date" value="${cur()}" max="${today()}" onchange="pickDay(this.value)" aria-label="Дата" tabindex="-1"></label><button class="x" aria-label="Закрыть" onclick="closeSheet()">×</button></div><div class="seg">${MEALS.map(([k,n])=>`<button data-m="${k}" class="${k==meal?'on':''}" onclick="setMeal('${k}')">${n}</button>`).join('')}</div><div class="am" id="am"></div><div class="chips" id="fq"></div><div id="pv"></div><div class="cmp"><div class="menu" id="mn" hidden><button onclick="$('#fc').click()">Сделать фото</button><button onclick="$('#fg').click()">Из галереи</button></div><label class="pl" aria-label="Добавить фото">${PLUS}<input id="fg" type="file" accept="image/*" onchange="attach(this.files[0])"></label><div id="ai" class="ce" contenteditable="${OWNKB()?'false':'plaintext-only'}" onclick="kbOpen(this,event)" role="textbox" aria-multiline="true" aria-label="Что вы съели" data-ph="Еда и вес…" oninput="gr(this)"></div>${voiceButton('ai')}<button class="sb" aria-label="Отправить" onpointerdown="event.preventDefault()" onclick="sendFood()" disabled>${UP}</button><input id="fc" type="file" accept="image/*" capture="environment" hidden onchange="attach(this.files[0])"><input id="ff" type="file" accept=".jpg,.jpeg,.png,.webp,.heic,.heif" hidden onchange="attach(this.files[0])"></div></div>`,false,true);loadHist();drawFq();setTimeout(loadHist,60)}
 function allFoods(){return S.foods.map(f=>[f.n,f.k,f.p,f.f,f.c,f.d]).concat(DB)}
 const hasAPI=()=>API.startsWith('http');
-async function callAPI(o){const x=await PrivateAccess.request(o);if(!x.ok)throw{code:x.status==429?'rl':'err'};return (await x.json()).text}
+async function callAPI(payload,options={}){
+ const response=await PrivateAccess.request(payload,options);
+ const data=await response.json().catch(()=>null);
+ if(!response.ok)throw FoodRequest.failure(response,data||{});
+ if(!data||typeof data.text!=='string')throw FoodRequest.invalid();
+ return data.text;
+}
 function shrink(f){return new Promise((ok,no)=>{const i=new Image();i.onload=()=>{const k=Math.min(1,1024/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=Math.round(i.width*k);c.height=Math.round(i.height*k);c.getContext('2d').drawImage(i,0,0,c.width,c.height);ok(c.toDataURL('image/jpeg',.8).split(',')[1])};i.onerror=no;i.src=URL.createObjectURL(f)})}
 /* ---- ИИ-тренер ---- */
 const SYS='Ты — дружелюбный ИИ-тренер по питанию в приложении для подсчёта калорий. Отвечай по-русски, кратко (до 120 слов), конкретно и с опорой на данные пользователя. Не ставь диагнозов и не советуй рацион ниже 1200 ккал; при проблемах со здоровьем рекомендуй врача.';
