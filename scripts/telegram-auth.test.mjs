@@ -11,7 +11,7 @@ function signed(id,extra={}){
  const secret=createHmac('sha256','WebAppData').update(token).digest();
  return new URLSearchParams({...fields,hash:createHmac('sha256',secret).update(check).digest('hex')}).toString();
 }
-test('only the two authorized accounts pass with a valid Telegram signature',async()=>{
+test('only configured accounts pass with a valid Telegram signature',async()=>{
  for(const id of [111,222])assert.deepEqual(await verifyTelegramAccess(signed(id),env,now),{ok:true,userId:id});
  assert.deepEqual(await verifyTelegramAccess(signed(333),env,now),{ok:false,error:'telegram_not_allowed',status:403});
 });
@@ -27,7 +27,7 @@ test('old and future signed launches expire, while a current signed launch is ac
  assert.equal((await verifyTelegramAccess(signed(111,{auth_date:String(now-300)}),env,now)).ok,true);
 });
 test('missing or malformed configuration never opens access',async()=>{
- for(const config of [{},{...env,TELEGRAM_BOT_TOKEN:''},{...env,TELEGRAM_ALLOWED_IDS:'[]'},{...env,TELEGRAM_ALLOWED_IDS:'[111,222,333]'},{...env,TELEGRAM_ALLOWED_IDS:'[111,111]'},{...env,TELEGRAM_ALLOWED_IDS:'["111",222]'},{...env,TELEGRAM_ALLOWED_IDS:'not JSON'}]){
+ for(const config of [{},{...env,TELEGRAM_BOT_TOKEN:''},{...env,TELEGRAM_ALLOWED_IDS:'[]'},{...env,TELEGRAM_ALLOWED_IDS:'{"id":111}'},{...env,TELEGRAM_ALLOWED_IDS:'[111,111]'},{...env,TELEGRAM_ALLOWED_IDS:'["111",222]'},{...env,TELEGRAM_ALLOWED_IDS:'not JSON'}]){
   assert.deepEqual(await verifyTelegramAccess(signed(111),config,now),{ok:false,error:'private_not_configured',status:503});
  }
 });
@@ -53,6 +53,14 @@ test('private access admits only configured verified IDs and is closed when conf
  assert.equal((await worker.fetch(request(111),{...telegramEnvFixture,TELEGRAM_ALLOWED_IDS:'[111]'})).status,200);
  for(const id of [222,333]){const r=await worker.fetch(request(id),{...telegramEnvFixture,TELEGRAM_ALLOWED_IDS:'[111]'});assert.equal(r.status,403);assert.equal((await r.json()).error,'telegram_not_allowed')}
  const missing=await worker.fetch(request(111),{});assert.equal(missing.status,503);
+});
+test('adding a third account grants access to all listed accounts and rejects an outsider',async()=>{
+ const config={...telegramEnvFixture,TELEGRAM_ALLOWED_IDS:'[111,222,3330000000]'};
+ const request=id=>new Request('https://example.test',{method:'POST',headers:{Origin:'https://kolpakov-uz.github.io'},body:JSON.stringify(telegramPayload({mode:'access'},id))});
+ for(const id of [111,222,3330000000])assert.equal((await worker.fetch(request(id),config)).status,200);
+ const outsider=await worker.fetch(request(444),config);
+ assert.equal(outsider.status,403);
+ assert.equal((await outsider.json()).error,'telegram_not_allowed');
 });
 test('CORS preflight remains available while normal GET and wrong-origin requests stay forbidden',async()=>{
  assert.equal((await worker.fetch(new Request('https://example.test',{method:'OPTIONS'}),{})).status,200);

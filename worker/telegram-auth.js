@@ -3,9 +3,9 @@ const encoder=new TextEncoder();
 const denied=(error,status)=>({ok:false,error,status});
 const validId=value=>Number.isSafeInteger(value)&&value>0&&value<=4503599627370495;
 function allowedAccounts(raw){
- if(typeof raw!=='string'||raw.length>200)throw Error('configuration');
+ if(typeof raw!=='string')throw Error('configuration');
  const accounts=JSON.parse(raw);
- if(!Array.isArray(accounts)||accounts.length<1||accounts.length>2||accounts.some(id=>!validId(id))||new Set(accounts).size!==accounts.length)throw Error('configuration');
+ if(!Array.isArray(accounts)||accounts.length<1||accounts.some(id=>!validId(id))||new Set(accounts).size!==accounts.length)throw Error('configuration');
  return accounts;
 }
 export function allowedTelegramIds(env){return allowedAccounts(env.TELEGRAM_ALLOWED_IDS)}
