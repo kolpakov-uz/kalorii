@@ -70,6 +70,30 @@ test('temporary failure keeps the same photo and meal, shows continued processin
  for(const snapshot of x.snapshots){if(snapshot.log[date]?.length)assert.ok(snapshot.hist[date+'|b'].some(message=>message.ids?.includes(snapshot.log[date][0].id)))}
 });
 
+test('two biscuits survive an incomplete primary-model response and reach the diary through one client request',async()=>{
+ const x=setup(),original=globalThis.fetch;
+ const complete={reply:'КБЖУ оценены',actions:[{op:'add',name:'Печенье с джемом',grams:40,kcal100:380,protein100:5,fat100:11,carbs100:65}]};
+ let upstreamCalls=0;
+ globalThis.fetch=async()=>{
+  const result=++upstreamCalls===1?{reply:'Записал два печенья.',actions:[{op:'add'}]}:complete;
+  return Response.json({candidates:[{finishReason:'STOP',content:{parts:[{text:JSON.stringify(result)}]}}]});
+ };
+ x.reply(async request=>{
+  const response=await worker.fetch(new Request('https://fixture.test',{method:'POST',headers:{Origin:'https://kolpakov-uz.github.io'},body:JSON.stringify(telegramPayload(request))}),{...telegramEnvFixture,MODEL:'gemini-4-hydrogen',MODEL_FALLBACKS:'gemini-3.8-flash,gemini-3.5-flash-lite'});
+  assert.equal(response.status,200);
+  return JSON.parse((await response.json()).text);
+ });
+ try{
+  await x.send('Две печеньки с вишнёвым джемом');
+  assert.equal(upstreamCalls,2);
+  assert.equal(x.requests.length,1);
+  assert.equal(x.entries().length,1);
+  assert.equal(x.entries()[0].g,40);
+  assert.equal(x.entries()[0].k,152);
+  assert.equal(x.state.hist[date+'|b'].filter(message=>message.r==='me').length,1);
+ }finally{globalThis.fetch=original}
+});
+
 test('an invalid or partial batch is retried before any item is written and allows a larger complete reply',async()=>{
  const x=setup();x.reply((_request,_options,attempt)=>{
   assert.equal(x.entries().length,0);

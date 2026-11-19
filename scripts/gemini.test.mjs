@@ -47,9 +47,11 @@ test('production configuration starts with Hydrogen and stops after the first su
   assert.deepEqual(calls[0].body.contents,body.contents);
   assert.deepEqual(calls[0].body.systemInstruction,body.systemInstruction);
   assert.equal(calls[0].body.generationConfig.thinkingConfig.thinkingLevel,'MEDIUM');
-  assert.equal(calls[0].body.generationConfig.responseJsonSchema.properties.actions.items.required[0],'op');
+  const addSchema=calls[0].body.generationConfig.responseJsonSchema.properties.actions.items.anyOf[0];
+  assert.deepEqual(addSchema.required,['op','name','grams','kcal100','protein100','fat100','carbs100']);
+  assert.ok(addSchema.required.every(field=>field in addSchema.properties));
   assert.equal('temperature' in calls[0].body.generationConfig,false);
-  assert.equal('maxOutputTokens' in calls[0].body.generationConfig,false);
+  assert.equal(calls[0].body.generationConfig.maxOutputTokens,8192);
   assert.equal(body.generationConfig.temperature,0);
   assert.equal(body.generationConfig.maxOutputTokens,1600);
 });
@@ -63,7 +65,9 @@ test('daily quotas move through all three models and are shared across subsequen
   await generateContent(x.env,body,'dish');
   await generateContent(x.env,body,'chat');
   assert.deepEqual(calls.map(call=>call.model),[primary,secondary,secondary,finalModel,finalModel]);
-  assert.deepEqual(calls.at(-1).body,body);
+  assert.deepEqual(calls.at(-1).body.contents,body.contents);
+  assert.equal(calls.at(-1).body.generationConfig.temperature,body.generationConfig.temperature);
+  assert.equal(calls.at(-1).body.generationConfig.maxOutputTokens,body.generationConfig.maxOutputTokens);
   assert.equal(x.writes.length,2);
   assert.ok(x.writes.every(write=>write.options.expirationTtl >= 25*60*60));
   assert.doesNotMatch(JSON.stringify(x.writes),/fixture-only-api-key|вафли|ZmFrZS/);
@@ -160,7 +164,7 @@ test('unavailable models and network failures fall through with the original pho
   });
   await generateContent(x.env,body,'photo');
   await generateContent(x.env,body,'photo');
-  assert.deepEqual(calls.map(call=>call.model),[primary,secondary,finalModel,secondary,finalModel]);
+  assert.deepEqual(calls.map(call=>call.model),[primary,secondary,finalModel,finalModel]);
   assert.ok(calls.every(call=>JSON.stringify(call.body.contents) === JSON.stringify(body.contents)));
   now += 300000;
   unavailable = false;
@@ -201,10 +205,50 @@ test('an unresponsive model is aborted in time for the next model to answer',asy
   });
   const pending = generateContent(x.env,body,'photo');
   await firstStarted;
-  t.mock.timers.tick(12000);
+  t.mock.timers.tick(8000);
   assert.equal((await pending).status,200);
   assert.equal(calls[0].options.signal.aborted,true);
   assert.equal(calls[1].model,secondary);
+});
+
+test('HTTP 200 without nutritional values falls through once and skips the broken model on the next request',async t=>{
+  const x=fixture();
+  const incomplete={reply:'Записал две печеньки.',actions:[{op:'add'}]};
+  const complete={reply:'КБЖУ оценены',actions:[{op:'add',name:'Печенье с джемом',grams:40,kcal100:380,protein100:5,fat100:11,carbs100:65}]};
+  const calls=backend(t,({model})=>answer(JSON.stringify(model===primary?incomplete:complete)));
+  for(let attempt=0;attempt<2;attempt++){
+    const response=await generateContent(x.env,foodRequest({mode:'dish',text:'Две печеньки с джемом'}),'dish');
+    const payload=await response.json();
+    assert.deepEqual(JSON.parse(payload.candidates[0].content.parts[0].text),complete);
+  }
+  assert.deepEqual(calls.map(call=>call.model),[primary,secondary,secondary]);
+  assert.equal(calls[0].body.generationConfig.thinkingConfig.thinkingLevel,'LOW');
+  assert.equal(x.writes.length,1);
+  assert.equal(JSON.parse(x.writes[0].value).error,'invalid_response');
+});
+
+test('empty or malformed successful responses fall back while safety refusals remain final',async t=>{
+  for(const failed of [()=>Response.json({}),()=>new Response('broken JSON'),()=>answer('{"actions":[')]){
+    const x=fixture();
+    const calls=backend(t,({model})=>model===primary?failed():success());
+    assert.equal((await generateContent(x.env,body,'photo')).status,200);
+    assert.deepEqual(calls.map(call=>call.model),[primary,secondary]);
+    t.mock.restoreAll();
+  }
+  const x=fixture();
+  const calls=backend(t,()=>Response.json({promptFeedback:{blockReason:'SAFETY'}}));
+  const response=await generateContent(x.env,body,'photo');
+  assert.equal((await response.json()).promptFeedback.blockReason,'SAFETY');
+  assert.equal(calls.length,1);
+});
+
+test('a delayed KV write cannot make the same server immediately repeat a broken model',async t=>{
+  const x=fixture();
+  x.env.SUBS={get:async()=>null,put:async()=>{}};
+  const calls=backend(t,({model})=>model===primary?answer('{"actions":[{"op":"add"}]}'):success());
+  await generateContent(x.env,body,'photo');
+  await generateContent(x.env,body,'photo');
+  assert.deepEqual(calls.map(call=>call.model),[primary,secondary,secondary]);
 });
 
 test('the normal Worker entry point uses the chain for text, photos, coach chat and voice',async t=>{

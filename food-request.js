@@ -8,9 +8,12 @@ const FoodRequest=(()=>{
   }
   async function run(request,parse,onProgress=()=>{}){
     let previousError=null;
+    const deadline=Date.now()+45000;
     for(let attempt=0;attempt<3;attempt++){
       const controller=new AbortController();
-      const timeout=setTimeout(()=>controller.abort(),45000);
+      const remaining=deadline-Date.now();
+      if(remaining<=0)throw previousError||new DOMException('timeout','AbortError');
+      const timeout=setTimeout(()=>controller.abort(),remaining);
       let delay;
       try{
         onProgress(attempt?'Продолжаю считать…':'Считаю КБЖУ…');
@@ -20,12 +23,12 @@ const FoodRequest=(()=>{
         previousError=error;
         const transient=error.retryable===true||['TypeError','AbortError','SyntaxError'].includes(error.name);
         if(!transient||error.retryable===false||attempt===2)throw error;
-        delay=Math.max(attempt?6000:2000,(Number(error.retryAfter)||0)*1000);
-        if(delay>60000)throw error;
+        delay=Math.max(attempt?6000:2000,(Number(error.retryAfter)||0)*1000)+Math.floor(Math.random()*350);
+        if(delay>60000||Date.now()+delay>=deadline)throw error;
         // Only the transport and parsing are repeated. The caller applies the result once.
         onProgress(error.name==='TypeError'?'Восстанавливаю соединение…':'Продолжаю считать…');
       }finally{clearTimeout(timeout)}
-      await new Promise(resolve=>setTimeout(resolve,delay+Math.floor(Math.random()*350)));
+      await new Promise(resolve=>setTimeout(resolve,delay));
     }
   }
   function message(error){

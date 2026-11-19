@@ -1,42 +1,34 @@
-import {aiFailure} from './ai-errors.js';
+import {aiFailure,candidateText,foodText} from './ai-errors.js';
+import {transcriptionText} from './voice.js';
+import {responseSchema} from './ai-schema.js';
 
 const quotaDate = new Intl.DateTimeFormat('en-CA', {timeZone:'America/Los_Angeles',year:'numeric',month:'2-digit',day:'2-digit'});
+const recentCooldowns = new WeakMap();
 
 function modelRequest(body, model, mode) {
-  if (!['gemini-4-hydrogen','gemini-3.8-flash'].includes(model)) return body;
-  const config = {...body.generationConfig};
+  const config = {...body.generationConfig,responseJsonSchema:responseSchema(mode)};
+  if (!['gemini-4-hydrogen','gemini-3.8-flash'].includes(model)) return {...body,generationConfig:config};
   delete config.temperature;
   delete config.topP;
   delete config.topK;
-  // Thinking shares the output budget. Let these models use their native limit.
-  delete config.maxOutputTokens;
-  config.thinkingConfig = {thinkingLevel:mode === 'transcribe' ? 'LOW' : 'MEDIUM'};
-  if (mode === 'transcribe') {
-    config.responseJsonSchema = {type:'object',properties:{transcript:{type:'string'}},required:['transcript']};
-  } else {
-    const actionKey = mode === 'chat' ? 'type' : 'op';
-    config.responseJsonSchema = {
-      type:'object',
-      properties:{
-        reply:{type:'string'},
-        actions:{type:'array',items:{type:'object',properties:{[actionKey]:{type:'string'}},required:[actionKey],additionalProperties:true}}
-      },
-      required:['reply','actions']
-    };
-  }
+  config.maxOutputTokens = Math.max(8192,config.maxOutputTokens || 0);
+  const hasImage = body.contents.some(turn=>turn.parts.some(part=>part.inlineData?.mimeType?.startsWith('image/')));
+  config.thinkingConfig = {thinkingLevel:mode === 'chat' || hasImage ? 'MEDIUM' : 'LOW'};
   return {...body,generationConfig:config};
 }
 
 async function cooldownResponse(storage, key) {
   if (!storage) return null;
   try {
-    const state = JSON.parse(await storage.get(key));
+    // KV writes propagate asynchronously. Remember our own failures immediately.
+    const state = recentCooldowns.get(storage)?.get(key) || JSON.parse(await storage.get(key));
     const now = Date.now();
     if (state?.day === quotaDate.format(now) && state.status === 429) {
       return Response.json({error:{code:'quota_exceeded'}}, {status:429});
     }
-    if (state?.until > now && [403,404,429].includes(state.status)) {
-      return Response.json({}, {status:state.status,headers:{'Retry-After':String(Math.ceil((state.until-now)/1000))}});
+    if (state?.until > now && [403,404,408,429,502,503].includes(state.status)) {
+      const payload=state.error === 'invalid_response' ? {error:{code:'invalid_response'}} : {};
+      return Response.json(payload, {status:state.status,headers:{'Retry-After':String(Math.ceil((state.until-now)/1000))}});
     }
   } catch {
     // A storage outage must not prevent a direct attempt with Gemini.
@@ -55,8 +47,14 @@ async function saveCooldown(storage, key, response, failure, startedAt) {
   } else if (response.status === 429 || response.status === 403 || response.status === 404) {
     seconds = response.status === 429 ? failure.data.retryAfter : 5*60;
     state = {status:response.status,until:now+seconds*1000};
+  } else if (failure.data.retryable) {
+    seconds = 30;
+    state = {status:failure.status,until:now+seconds*1000,error:failure.data.error};
   } else return;
   try {
+    let recent=recentCooldowns.get(storage);
+    if(!recent){recent=new Map();recentCooldowns.set(storage,recent)}
+    recent.set(key,state);
     await storage.put(key, JSON.stringify(state), {expirationTtl:Math.max(60,Math.ceil(seconds))});
   } catch {
     // The next model can still answer when a cooldown cannot be saved.
@@ -68,7 +66,7 @@ export async function generateContent(env, body, mode) {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(env.GEMINI_KEY || ''));
   const scope = [...new Uint8Array(digest)].slice(0,12).map(byte=>byte.toString(16).padStart(2,'0')).join('');
   const failures = [];
-  const deadline = Date.now()+36000;
+  const deadline = Date.now()+24000;
 
   for (const [index,model] of models.entries()) {
     const key = 'gemini:cooldown:v1:'+scope+':'+model;
@@ -78,7 +76,7 @@ export async function generateContent(env, body, mode) {
       const startedAt = Date.now();
       const controller = new AbortController();
       // Leave time for every fallback inside the client's 45-second timeout.
-      const timeout = Math.max(1,Math.floor((deadline-Date.now())/(models.length-index)));
+      const timeout = Math.max(1,Math.min(8000,Math.floor((deadline-Date.now())/(models.length-index))));
       const timer = setTimeout(()=>controller.abort(),timeout);
       try {
         const upstream = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
@@ -94,7 +92,21 @@ export async function generateContent(env, body, mode) {
       } finally {
         clearTimeout(timer);
       }
-      if (response.ok) return response;
+      if (response.ok) {
+        try {
+          const data=await response.clone().json();
+          if(mode === 'dish' || mode === 'photo')foodText(data);
+          else if(mode === 'transcribe')transcriptionText(data);
+          else {
+            const parsed=JSON.parse(candidateText(data));
+            if(typeof parsed.reply!=='string'||!Array.isArray(parsed.actions)||parsed.actions.some(action=>!action||typeof action.type!=='string'))throw new Error('invalid_response');
+          }
+          return response;
+        } catch(error) {
+          if(error.retryable===false)return response;
+          response=Response.json({error:{code:'invalid_response'}},{status:502});
+        }
+      }
       const failure = await aiFailure(response.clone());
       // Invalid input, credentials and billing require their own correction.
       if (![403,404,408,429].includes(response.status) && response.status < 500) return response;

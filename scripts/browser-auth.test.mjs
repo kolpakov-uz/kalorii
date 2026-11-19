@@ -55,10 +55,11 @@ test('browser can use existing API modes and push ownership without trusting a c
  assert.equal((await send('unsync',other.browserToken)).status,403);
  assert.equal((await send('unsync',owner.browserToken)).status,200);
  const original=globalThis.fetch;let upstream=0;
- globalThis.fetch=async()=>{upstream++;return new Response('{"candidates":[{"content":{"parts":[{"text":"fixture reply"}]}}]}')};
+ const reply=JSON.stringify({actions:[{op:'add',name:'Яблоко',grams:150,kcal100:52,protein100:0.3,fat100:0.2,carbs100:14}],reply:'Добавлено яблоко.'});
+ globalThis.fetch=async()=>{upstream++;return Response.json({candidates:[{finishReason:'STOP',content:{parts:[{text:reply}]}}]})};
  try{
   const r=await worker.fetch(request({mode:'dish',browserToken:owner.browserToken,text:'Яблоко'}),env);
-  assert.equal(r.status,200);assert.equal((await r.json()).text,'fixture reply');assert.equal(upstream,1);
+  assert.equal(r.status,200);assert.equal((await r.json()).text,reply);assert.equal(upstream,1);
  }finally{globalThis.fetch=original}
 });
 

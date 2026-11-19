@@ -91,6 +91,7 @@ export default{async fetch(req,env){
  if(!r.ok){
   if(b.mode=='transcribe'){
    // Expose only status categories, never upstream messages, audio or secrets.
+   if((await aiFailure(r.clone())).data.error==='invalid_response')return j({error:'transcript'},502);
    return j({error:r.status==400?'audio_rejected':r.status==401||r.status==403?'ai_access':'ai',upstreamStatus:r.status},502);
   }
   const failure=await aiFailure(r);return j(failure.data,failure.status);
