@@ -256,7 +256,7 @@ button{transition:transform .12s ease,filter .12s,background .2s,opacity .2s}
 <input type="file" id="diary-file" accept="application/json,.json" hidden onchange="previewDiary(this.files[0])">
 <script src="goal-progress.js?v=motivation1"></script>
 <script src="goal-ui.js?v=motivation1"></script>
-<script src="food-request.js?v=retry2"></script>
+<script src="food-request.js?v=retry3"></script>
 <script src="diary-backup.js"></script>
 <script src="diary-transfer.js"></script>
 <script src="notifications.js"></script>
@@ -634,11 +634,35 @@ function applyActions(L){const out=[];if(!Array.isArray(L)||!L.length)return out
  case 'add_water':{const ml=R(num(a.ml,0,2000));if(!ml)break;S.water[d]=(S.water[d]||0)+ml;out.push(`Вода +${ml} мл`);break}
  case 'add_weight':{const kg=num(a.kg,35,250);if(!kg)break;const W=S.weights;if(W.length&&W.at(-1).d==d)W.at(-1).w=kg;else W.push({d,w:kg});S.profile.w=kg;out.push(`Вес: ${kg} кг`);break}
  }}catch(e){}});save();return out}
+function coachResponse(raw){
+ const response=JSON.parse(raw.replace(/```json|```/g,'').trim());
+ if(!response||typeof response.reply!=='string'||!response.reply.trim()||!Array.isArray(response.actions))throw FoodRequest.invalid();
+ for(const action of response.actions){
+  if(!action||typeof action!=='object'||typeof action.type!=='string')throw FoodRequest.invalid();
+  if(action.type!=='add_workout')continue;
+  if(!Array.isArray(action.kinds)||!action.kinds.length||action.kinds.some(kind=>!['strength','abs','cardio'].includes(kind)))throw FoodRequest.invalid();
+  const minutes=Number(action.minutes);
+  if(!Number.isFinite(minutes)||minutes<=0||minutes>1440)throw FoodRequest.invalid();
+  if(action.date!=null){
+   if(!/^\d{4}-\d{2}-\d{2}$/.test(action.date)||action.date>today()||action.date<'2020-01-01')throw FoodRequest.invalid();
+   const date=new Date(action.date+'T00:00:00Z');
+   if(!Number.isFinite(date.getTime())||date.toISOString().slice(0,10)!==action.date)throw FoodRequest.invalid();
+  }
+ }
+ return response;
+}
 async function ask(t){if(VOICE)return toast('Сначала завершите голосовой ввод.');kbFlush();const i=$('#ci'),text=(t||(i&&val(i))||'').trim();if(!text||ask.b)return;if(i){i.textContent='';kbSync(1);i.focus();sbtn(i)}ask.b=1;const c=$('#chat');if(!S.chat.length)c.innerHTML='';
  c.append(bub('user',text,1));const box=bub('ai','',1);box.innerHTML='<span class="dots"><i></i><i></i><i></i></span>';c.append(box);const turns=S.chat.slice(-8).map(m=>({...m}));while(turns.length&&turns[0].role!='user')turns.shift();S.chat.push({role:'user',content:text});toBot(1);
  let out='',acts=[];
- try{if(!hasAPI())throw{code:'na'};const raw=await callAPI({mode:'chat',context:ctx(),messages:turns.concat({role:'user',content:text})});let o;try{o=JSON.parse(raw.replace(/```json|```/g,''))}catch(e){o={reply:raw}}out=String(o.reply||'Готово.');acts=applyActions(o.actions)}
- catch(e){if(e.code=='na'){await new Promise(r=>setTimeout(r,900));out=local()}else out=e.code=='rl'?'Слишком много запросов. Подождите минуту.':'Не удалось получить ответ. Попробуйте ещё раз.'}
+ try{
+  if(!hasAPI())throw{code:'na'};
+  const request={mode:'chat',context:ctx(),messages:turns.concat({role:'user',content:text})};
+  const response=await FoodRequest.run(signal=>callAPI(request,{signal}),coachResponse,status=>{
+   box.innerHTML='<span class="food-progress" role="status" aria-live="polite"><span class="dots"><i></i><i></i><i></i></span><span>'+esc(status)+'</span></span>';
+  },{start:'Обрабатываю сообщение…',retry:'Продолжаю обрабатывать…'});
+  acts=applyActions(response.actions);out=response.reply;
+ }
+ catch(e){if(e.code=='na'){await new Promise(r=>setTimeout(r,900));out=local()}else out=FoodRequest.message(e,'Повторите сообщение, чтобы продолжить.')}
  box.textContent=out;if(acts.length){const a=document.createElement('div');a.className='acts';a.innerHTML=acts.map(x=>`<span>✓ ${esc(x)}</span>`).join('')+'<button onclick="undo()">Отменить</button>';box.after(a)}
  S.chat.push({role:'assistant',content:out});save();ask.b=0;toBot(1)}
 /* ---- прогресс ---- */

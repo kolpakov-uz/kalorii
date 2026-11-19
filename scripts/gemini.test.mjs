@@ -271,7 +271,10 @@ test('the normal Worker entry point uses the chain for text, photos, coach chat 
       assert.equal(calls[1].body.generationConfig.thinkingConfig.thinkingLevel,'LOW');
       assert.deepEqual(calls[1].body.generationConfig.responseJsonSchema.required,['transcript']);
     }
-    if (mode === 'chat') assert.deepEqual(calls[1].body.generationConfig.responseJsonSchema.properties.actions.items.required,['type']);
+    if (mode === 'chat') {
+      const actions=calls[1].body.generationConfig.responseJsonSchema.properties.actions.items.anyOf;
+      assert.deepEqual(actions.find(action=>action.properties.type.enum[0]==='add_workout').required,['type','kinds','minutes','date']);
+    }
     t.mock.restoreAll();
   }
 });

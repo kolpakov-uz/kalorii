@@ -1,3 +1,5 @@
+import {coachActions} from './ai-schema.js';
+
 export async function aiFailure(response) {
   const status=response.status;
   if(status===502){
@@ -74,6 +76,36 @@ export function foodText(data) {
     const reply=typeof response.reply==='string'?response.reply.trim():'';
     const vagueFailure=/^(?:не удалось (?:посчитать|подсчитать|рассчитать|обработать запрос)(?:[.,!…\s]+попробуйте (?:ещ[её] раз|позже))?|попробуйте (?:ещ[её] раз|позже))[.!…\s]*$/i.test(reply);
     if(!reply||vagueFailure||/(записал|записан|добавил|добавлен|внес|внёс)/i.test(reply))invalid();
+  }
+  return text;
+}
+function validCoachValue(value,schema) {
+  if(schema.type==='array')return Array.isArray(value)&&value.every(item=>validCoachValue(item,schema.items));
+  if(schema.type==='number')return (typeof value==='number'||typeof value==='string'&&value.trim()!=='')&&Number.isFinite(Number(value));
+  return typeof value===schema.type&&(!schema.enum||schema.enum.includes(value));
+}
+
+export function coachText(data) {
+  const text=candidateText(data);
+  const invalid=()=>{throw Object.assign(new Error('invalid_response'),{retryable:true})};
+  let response;
+  try{response=JSON.parse(text.replace(/```json|```/g,'').trim())}catch{invalid()}
+  if(!response||typeof response.reply!=='string'||!response.reply.trim()||!Array.isArray(response.actions))invalid();
+  for(const action of response.actions){
+    if(!action||typeof action!=='object'||Array.isArray(action))invalid();
+    const schema=coachActions.find(candidate=>candidate.properties.type.enum[0]===action.type);
+    if(!schema||schema.required.some(field=>action[field]==null))invalid();
+    for(const [field,value] of Object.entries(action)){
+      if(!schema.properties[field]||!validCoachValue(value,schema.properties[field]))invalid();
+      if(['id','name'].includes(field)&&!value.trim())invalid();
+    }
+    if(action.date!=null){
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(action.date))invalid();
+      const date=new Date(action.date+'T00:00:00Z');
+      if(!Number.isFinite(date.getTime())||date.toISOString().slice(0,10)!==action.date)invalid();
+    }
+    if(action.type==='add_workout'&&(!action.kinds.length||Number(action.minutes)<=0||Number(action.minutes)>1440))invalid();
+    if(['edit_food','add_measure','update_goal','set_reminder','set_water_reminder'].includes(action.type)&&!Object.keys(action).some(field=>!['type','id','key'].includes(field)))invalid();
   }
   return text;
 }

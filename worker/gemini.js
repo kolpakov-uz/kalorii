@@ -1,4 +1,4 @@
-import {aiFailure,candidateText,foodText} from './ai-errors.js';
+import {aiFailure,coachText,foodText} from './ai-errors.js';
 import {transcriptionText} from './voice.js';
 import {responseSchema} from './ai-schema.js';
 
@@ -97,10 +97,7 @@ export async function generateContent(env, body, mode) {
           const data=await response.clone().json();
           if(mode === 'dish' || mode === 'photo')foodText(data);
           else if(mode === 'transcribe')transcriptionText(data);
-          else {
-            const parsed=JSON.parse(candidateText(data));
-            if(typeof parsed.reply!=='string'||!Array.isArray(parsed.actions)||parsed.actions.some(action=>!action||typeof action.type!=='string'))throw new Error('invalid_response');
-          }
+          else coachText(data);
           return response;
         } catch(error) {
           if(error.retryable===false)return response;

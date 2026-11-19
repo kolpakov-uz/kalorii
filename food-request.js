@@ -6,7 +6,7 @@ const FoodRequest=(()=>{
     const retryable=!permanent&&(data.retryable===true||response.status===408||response.status>=500||response.status===429);
     return Object.assign(new Error(kind),{kind,code:response.status===429?'rl':'err',status:response.status,retryable,retryAfter:Number(data.retryAfter)||0});
   }
-  async function run(request,parse,onProgress=()=>{}){
+  async function run(request,parse,onProgress=()=>{},labels={}){
     let previousError=null;
     const deadline=Date.now()+45000;
     for(let attempt=0;attempt<3;attempt++){
@@ -16,7 +16,7 @@ const FoodRequest=(()=>{
       const timeout=setTimeout(()=>controller.abort(),remaining);
       let delay;
       try{
-        onProgress(attempt?'Продолжаю считать…':'Считаю КБЖУ…');
+        onProgress(attempt?(labels.retry||'Продолжаю считать…'):(labels.start||'Считаю КБЖУ…'));
         const raw=await request(controller.signal,attempt,previousError);
         return parse(raw);
       }catch(error){
@@ -26,12 +26,12 @@ const FoodRequest=(()=>{
         delay=Math.max(attempt?6000:2000,(Number(error.retryAfter)||0)*1000)+Math.floor(Math.random()*350);
         if(delay>60000||Date.now()+delay>=deadline)throw error;
         // Only the transport and parsing are repeated. The caller applies the result once.
-        onProgress(error.name==='TypeError'?'Восстанавливаю соединение…':'Продолжаю считать…');
+        onProgress(error.name==='TypeError'?'Восстанавливаю соединение…':labels.retry||'Продолжаю считать…');
       }finally{clearTimeout(timeout)}
       await new Promise(resolve=>setTimeout(resolve,delay));
     }
   }
-  function message(error){
+  function message(error,retryHint='Запрос можно продолжить кнопкой ниже.'){
     const messages={
       quota:'Лимит ИИ на сегодня исчерпан. Исходное сообщение сохранено в переписке.',
       rate:'Сервис просит немного подождать. Исходное сообщение сохранено в переписке.',
@@ -42,12 +42,12 @@ const FoodRequest=(()=>{
       ai_blocked:'ИИ просит изменить описание или фотографию. Исходное сообщение сохранено в переписке.',
       bad_image:'Фотографию не удалось прочитать. Попробуйте выбрать другой снимок.',
       too_big:'Фото слишком большое для отправки. Выберите снимок меньшего размера.',
-      invalid_response:'ИИ пока вернул неполный ответ. Запрос можно продолжить кнопкой ниже.',
-      save_failed:'Расчёт получен, но запись не сохранилась. Запрос можно продолжить кнопкой ниже.'
+      invalid_response:'ИИ пока вернул неполный ответ. '+retryHint,
+      save_failed:'Расчёт получен, но запись не сохранилась. '+retryHint
     };
     if(error.status===401||error.status===403)return 'Для продолжения откройте приложение заново через Telegram. Исходное сообщение сохранено в переписке.';
-    if(error.name==='TypeError')return 'Соединение пока не восстановилось. Запрос можно продолжить кнопкой ниже.';
-    return messages[error.kind||error.message]||'Сервис пока занят. Запрос можно продолжить кнопкой ниже.';
+    if(error.name==='TypeError')return 'Соединение пока не восстановилось. '+retryHint;
+    return messages[error.kind||error.message]||'Сервис пока занят. '+retryHint;
   }
   return {run,failure,invalid,message};
 })();

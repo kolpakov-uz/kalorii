@@ -32,22 +32,36 @@ const foodAction = {
   ]
 };
 
-const coachAction = {
-  type:'object',
-  properties:{
-    type:{type:'string',enum:['add_food','edit_food','delete_food','move_food','move_day','set_macros','reset_macros','set_goal','set_reminder','set_water_reminder','add_water','add_weight','add_measure','update_goal','add_workout']},
-    id:string,name:string,date:string,from:string,to:string,time:string,key:string,
-    meal:{type:'string',enum:['b','l','d','s']},
-    goal:{type:'string',enum:['lose','gain','abs','keep']},
-    on:{type:'boolean'},
-    kinds:{type:'array',items:{type:'string',enum:['strength','abs','cardio']}},
-    grams:number,kcal:number,protein:number,fat:number,carbs:number,
-    ml:number,kg:number,waist:number,neck:number,hip:number,arm:number,
-    weight:number,start:number,target:number,minutes:number,every_hours:number
-  },
-  required:['type'],
-  additionalProperties:false
-};
+function coachAction(type,properties,required=Object.keys(properties)) {
+  return {
+    type:'object',
+    properties:{type:{type:'string',enum:[type]},...properties},
+    required:['type',...required],
+    additionalProperties:false
+  };
+}
+
+// Keep unrelated optional fields out of each action. Their combinations can
+// exceed Gemini's constrained-decoding limits before generation even starts.
+const coachNumber = {type:'number'};
+const meal = {type:'string',enum:['b','l','d','s']};
+export const coachActions = [
+  coachAction('add_food',{name:string,grams:coachNumber,kcal:coachNumber,protein:coachNumber,fat:coachNumber,carbs:coachNumber,meal,date:string},['name','grams','kcal','protein','fat','carbs']),
+  coachAction('edit_food',{id:string,name:string,grams:coachNumber,kcal:coachNumber,protein:coachNumber,fat:coachNumber,carbs:coachNumber},['id']),
+  coachAction('delete_food',{id:string}),
+  coachAction('move_food',{id:string,date:string}),
+  coachAction('move_day',{from:string,to:string,meal},['from','to']),
+  coachAction('set_macros',{protein:coachNumber,fat:coachNumber,carbs:coachNumber}),
+  coachAction('reset_macros',{}),
+  coachAction('set_goal',{goal:{type:'string',enum:['lose','gain','abs','keep']}}),
+  coachAction('set_reminder',{key:{type:'string',enum:['b','l','d','s','e']},on:{type:'boolean'},time:string},['key']),
+  coachAction('set_water_reminder',{on:{type:'boolean'},from:string,to:string,every_hours:coachNumber},[]),
+  coachAction('add_water',{ml:coachNumber}),
+  coachAction('add_weight',{kg:coachNumber}),
+  coachAction('add_measure',{waist:coachNumber,neck:coachNumber,hip:coachNumber,arm:coachNumber,weight:coachNumber,bf:coachNumber},[]),
+  coachAction('update_goal',{start:coachNumber,target:coachNumber},[]),
+  coachAction('add_workout',{kinds:{type:'array',items:{type:'string',enum:['strength','abs','cardio']}},minutes:coachNumber,date:string})
+];
 
 export function responseSchema(mode) {
   if (mode === 'transcribe') {
@@ -57,7 +71,7 @@ export function responseSchema(mode) {
     type:'object',
     properties:{
       reply:string,
-      actions:{type:'array',maxItems:8,items:mode === 'chat' ? coachAction : foodAction}
+      actions:mode === 'chat' ? {type:'array',items:{anyOf:coachActions}} : {type:'array',maxItems:8,items:foodAction}
     },
     required:['reply','actions'],
     additionalProperties:false
