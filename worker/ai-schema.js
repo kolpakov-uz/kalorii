@@ -13,7 +13,7 @@ const foodAction = {
   anyOf:[
     {
       type:'object',
-      properties:{op:{type:'string',enum:['add']},...foodFields},
+      properties:{op:{type:'string',enum:['add']},foodId:string,...foodFields},
       required:['op','name','grams','kcal100','protein100','fat100','carbs100'],
       additionalProperties:false
     },

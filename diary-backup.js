@@ -13,18 +13,29 @@ const DiaryBackup=(()=>{
  const shape=spec=>v=>{obj(v);const out={};for(const [key,read] of Object.entries(spec))if(v[key]!==undefined)out[key]=read(v[key]);return out};
  const required=(read,keys)=>v=>{const out=read(v);for(const k of keys)if(out[k]===undefined)fail();return out};
  const map=(read,keyRead=text)=>v=>Object.fromEntries(Object.entries(obj(v)).map(([key,value])=>[keyRead(key),read(value)]));
- const macros={k:num,p:num,f:num,c:num},food=required(shape({id,n:text,g:num,m:choice('b','l','d','s'),...macros}),['id','n','g','m','k','p','f','c']);
+ const macros={k:num,p:num,f:num,c:num},food=required(shape({id,n:text,g:num,m:choice('b','l','d','s'),dishId:id,...macros}),['id','n','g','m','k','p','f','c']);
+ const savedFood=required(shape({id,n:text,d:text,g:num,aliases:array(text),meals:array(choice('b','l','d','s')),pinned:bool,hidden:bool,custom:bool,mergedInto:id,...macros}),['n','k','p','f','c']);
  const profile=required(shape({sex:choice('m','f'),a:num,h:num,w:num,act:num,goal:choice('lose','gain','abs','keep')}),['sex','a','h','w','act','goal']);
  const goal=required(shape({type:choice('abs','lose','arm','fat'),m:choice('waist','weight','arm','bf'),start:num,target:num,startDate:date}),['type','m','start','target','startDate']);
- const cache=required(shape({n:text,g:num,...macros}),['n','g','k','p','f','c']);
+ const cache=required(shape({n:text,g:num,dishId:id,...macros}),['n','g','k','p','f','c']);
  const history=shape({r:choice('me','ai'),t:text,ids:array(id),lbl:text,img:pattern(/^(?:|data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+)$/)});
  function parse(raw){
   if(typeof raw!=='string'||raw.length>20*1024*1024)fail();
   const envelope=JSON.parse(raw,(key,value)=>['__proto__','constructor','prototype'].includes(key)?fail():value);
   if(envelope?.format!=='kalorii-backup'||envelope.version!==1)fail();
   const input=obj(envelope.data),out={profile:null,log:{},water:{},weights:[],custom:null,foods:[],goal:null,meas:[],coachMode:'strict',wk:[],wkGoal:3,wkPlanMinutes:45,dc:{},rem:{on:{},t:{},fired:{}},chat:[],hist:{}};
-  const readers={profile:nullable(profile),log:map(array(food),date),water:map(num,date),weights:array(required(shape({d:date,w:num}),['d','w'])),custom:nullable(required(shape({p:num,f:num,c:num}),['p','f','c'])),foods:array(required(shape({n:text,d:text,...macros}),['n','k','p','f','c'])),goal:nullable(goal),meas:array(required(shape({d:date,waist:num,neck:num,hip:num,arm:num,weight:num,bf:num}),['d'])),coachMode:choice('soft','strict','hard'),wk:array(required(shape({id,d:date,t:array(choice('str','abs','cardio')),m:num}),['id','d','t','m'])),wkGoal:num,wkPlanMinutes:choice(15,30,45,60,75,90,105,120,135,150,165,180),dc:map(cache),chat:array(required(shape({role:choice('user','assistant'),content:text}),['role','content'])),hist:map(array(history),pattern(/^\d{4}-\d{2}-\d{2}\|[blds]$/)),ownKb:bool};
+  const readers={profile:nullable(profile),log:map(array(food),date),water:map(num,date),weights:array(required(shape({d:date,w:num}),['d','w'])),custom:nullable(required(shape({p:num,f:num,c:num}),['p','f','c'])),foods:array(savedFood),goal:nullable(goal),meas:array(required(shape({d:date,waist:num,neck:num,hip:num,arm:num,weight:num,bf:num}),['d'])),coachMode:choice('soft','strict','hard'),wk:array(required(shape({id,d:date,t:array(choice('str','abs','cardio')),m:num}),['id','d','t','m'])),wkGoal:num,wkPlanMinutes:choice(15,30,45,60,75,90,105,120,135,150,165,180),dc:map(cache),chat:array(required(shape({role:choice('user','assistant'),content:text}),['role','content'])),hist:map(array(history),pattern(/^\d{4}-\d{2}-\d{2}\|[blds]$/)),ownKb:bool};
   for(const [key,read] of Object.entries(readers))if(input[key]!==undefined)out[key]=read(input[key]);
+  const catalog=new Map(out.foods.filter(food=>food.id).map(food=>[food.id,food])),resolved=new Set();
+  for(const food of out.foods){
+   if(!food.mergedInto)continue;
+   const path=new Set();let current=food;
+   while(current.mergedInto&&!resolved.has(current.id)){
+    if(!current.id||path.has(current.id))fail();
+    path.add(current.id);current=catalog.get(current.mergedInto);if(!current)fail();
+   }
+   for(const id of path)resolved.add(id);
+  }
   if(input.rem){const rem=obj(input.rem);out.rem.on=map(bool,choice('b','l','d','s','e','w'))(rem.on||{});out.rem.t=map(time,choice('b','l','d','s','e'))(rem.t||{});if(rem.wc)out.rem.wc=required(shape({from:time,to:time,ev:choice(1,2,3)}),['from','to','ev'])(rem.wc)}
   if(out.profile&&(!(out.profile.a>=14&&out.profile.a<=100&&out.profile.h>=120&&out.profile.h<=230&&out.profile.w>=35&&out.profile.w<=250)||![1.2,1.375,1.55,1.725].includes(out.profile.act)))fail();
   if(out.goal&&(out.goal.m!=={abs:'waist',lose:'weight',arm:'arm',fat:'bf'}[out.goal.type]||out.goal.start===out.goal.target))fail();

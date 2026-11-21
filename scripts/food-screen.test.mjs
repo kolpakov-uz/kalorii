@@ -22,7 +22,7 @@ function setup({viewport={height:844,offsetTop:0},innerHeight=844}={}){
  if(viewport)viewport.addEventListener=(event,callback)=>viewportEvents[event]=callback;
  const context=vm.createContext({
   window,document,visualViewport:viewport,innerHeight,CK:false,S:{profile:{}},PrivateAccess:{allowed:true},V:'today',
-  KaloriiTelegram:{setDialogOpen:open=>surfaces.push(open),back(){}},
+  KaloriiTelegram:{setDialogOpen:open=>surfaces.push(open),back(){}},MyDishes:{back:()=>false},
   $:()=>host,lockBody:()=>locked++,unlockBody:()=>unlocked++,voiceCancel(){},kbClose(){},
   setTimeout:(callback,delay)=>{timers.push({callback,delay});return timers.length},requestAnimationFrame:callback=>frames.push(callback),
   today:()=> '2026-11-12',cur:()=> '2026-11-12',dlab:()=> 'Сегодня, 12 ноября',MEALS:[['b','Завтрак'],['l','Обед'],['d','Ужин'],['s','Перекус']],

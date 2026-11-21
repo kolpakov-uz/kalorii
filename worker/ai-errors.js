@@ -56,6 +56,7 @@ export function foodText(data) {
   const amount=value=>(typeof value==='number'||typeof value==='string'&&value.trim()!=='')&&Number.isFinite(Number(value))&&Number(value)>=0;
   for(const action of actions){
     if(!action||typeof action!=='object'||Array.isArray(action))invalid();
+    if(Object.hasOwn(action,'foodId')&&(typeof action.foodId!=='string'||action.foodId!==''&&!/^[a-zA-Z0-9_.-]{1,100}$/.test(action.foodId)))invalid();
     for(const field of ['grams','g','kcal','protein','fat','carbs','kcal100','protein100','fat100','carbs100']){
       if(action[field]!=null&&!amount(action[field]))invalid();
     }

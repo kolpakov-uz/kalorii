@@ -33,6 +33,8 @@ function setup(initial={}) {
     callAPI:async(request,options)=>{requests.push(JSON.parse(JSON.stringify(request)));const next=typeof response==='function'?await response(request,options,requests.length):response;if(next instanceof Error)throw next;return typeof next==='string'?next:JSON.stringify(next)}
   });
   vm.runInContext(fs.readFileSync(new URL('../food-request.js',import.meta.url),'utf8'),context);
+  vm.runInContext(fs.readFileSync(new URL('../dish-catalog.js',import.meta.url),'utf8'),context);
+  vm.runInContext(html.slice(html.indexOf('function saveFood('),html.indexOf('\nlet UNDO=',html.indexOf('function saveFood('))),context);
   context.testBubble=()=>{let markup='';const bubble={textContent:'',get innerHTML(){return markup},set innerHTML(value){markup=value;progress.push(value)}};bubbles.push(bubble);return bubble};
   vm.runInContext(source,context);
   const run=code=>vm.runInContext(code,context);
@@ -45,6 +47,28 @@ function setup(initial={}) {
   };
 }
 const pictures=body=>body.contents.flatMap(turn=>turn.parts.filter(part=>part.inlineData).map(part=>part.inlineData));
+
+test('AI identities count ten differently worded diary entries as one frequent dish across meals',async()=>{
+ const x=setup(),names=['Овсянка на молоке','Молочная овсяная каша','Овсяная каша, молочная'];
+ for(let i=0;i<10;i++){
+  x.run(`meal='${i<5?'b':'l'}'`);
+  x.reply(()=>({reply:'КБЖУ оценены',actions:[{op:'add',name:names[i%3],grams:200,kcal100:110,protein100:4,fat100:3,carbs100:16,...(x.state.foods[0]?{foodId:x.state.foods[0].id}:{})}]}));
+  await x.send(names[i%3]+' 200 г');
+ }
+ assert.equal(x.state.foods.filter(dish=>!dish.hidden).length,1);
+ assert.equal(new Set(x.entries().map(entry=>entry.dishId)).size,1);
+ assert.equal(x.run('DishCatalog.frequent(S,"b")[0].count'),10);
+ assert.equal(x.run('DishCatalog.frequent(S,"l")[0].count'),10);
+ assert.ok(x.requests.slice(1).some(request=>request.knownDishes.some(dish=>dish.id===x.state.foods[0].id)));
+});
+
+test('exact saved recipe names honor manual nutrition and an unknown model ID cannot target another dish',async()=>{
+ const x=setup({foods:[{id:'manual',n:'Моя каша',d:'',g:200,k:123,p:5,f:3,c:19,aliases:[],meals:['b'],custom:true,pinned:true}]});
+ x.reply({reply:'Добавлено',actions:[{op:'add',name:'Моя каша',grams:200,kcal100:300,protein100:20,fat100:10,carbs100:35,foodId:'unknown'}]});
+ await x.send('Моя каша 200 г');
+ assert.equal(x.entries()[0].k,246);assert.equal(x.entries()[0].dishId,'manual');
+ assert.equal(x.state.foods[0].k,123);
+});
 
 test('photo plus 50 grams sends the original image and saves calories and macros for exactly that portion',async()=>{
   const x=setup();

@@ -43,6 +43,7 @@ function setup(){
     callAPI:async(payload,options)=>{requests.push(JSON.parse(JSON.stringify(payload)));return respond(payload,options,requests.length)}
   });
   vm.runInContext(fs.readFileSync(new URL('../food-request.js',import.meta.url),'utf8'),context);
+  vm.runInContext(fs.readFileSync(new URL('../dish-catalog.js',import.meta.url),'utf8'),context);
   vm.runInContext(source,context);
   const run=code=>vm.runInContext(code,context);
   return {state,requests,snapshots,progress,context,run,respond:value=>respond=value,send:()=>run(`ask(${JSON.stringify(text)})`),get stored(){return snapshots.at(-1)}};
