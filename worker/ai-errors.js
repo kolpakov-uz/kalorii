@@ -1,10 +1,18 @@
 import {coachActions} from './ai-schema.js';
 
+function retryDelay(response){
+  const header=response.headers.get('Retry-After');
+  if(!header)return null;
+  const seconds=Number.isFinite(Number(header))?Number(header):(Date.parse(header)-Date.now())/1000;
+  return Number.isFinite(seconds)?Math.max(1,Math.ceil(seconds)):null;
+}
+
 export async function aiFailure(response) {
   const status=response.status;
+  const retryAfter=retryDelay(response);
   if(status===502){
     const payload=await response.clone().json().catch(()=>({}));
-    if(payload?.error?.code==='invalid_response')return {status:502,data:{error:'invalid_response',retryable:true}};
+    if(payload?.error?.code==='invalid_response')return {status:502,data:{error:'invalid_response',retryable:true,...(retryAfter?{retryAfter}:{})}};
   }
   if(status===429){
     const payload=await response.json().catch(()=>({}));
@@ -12,20 +20,16 @@ export async function aiFailure(response) {
     const violations=details.flatMap(detail=>Array.isArray(detail.violations)?detail.violations:[]);
     const dailyQuota=payload?.error?.code==='quota_exceeded'||violations.some(violation=>/perday|per_day|daily/i.test(String(violation.quotaId||'')+' '+String(violation.quotaMetric||'')));
     if(dailyQuota)return {status:429,data:{error:'quota',retryable:false}};
-    const header=response.headers.get('Retry-After');
     const retryInfo=details.find(detail=>String(detail['@type']||'').endsWith('/google.rpc.RetryInfo'));
     const delay=Number.parseFloat(retryInfo?.retryDelay);
-    const headerDelay=header&&Number.isFinite(Number(header))?Number(header):(Date.parse(header)-Date.now())/1000;
-    const retryAfter=Math.max(1,Math.ceil(Number.isFinite(headerDelay)?headerDelay:Number.isFinite(delay)?delay:10));
-    return {status:429,data:{error:'rate',retryable:true,retryAfter}};
+    return {status:429,data:{error:'rate',retryable:true,retryAfter:retryAfter||Math.max(1,Math.ceil(Number.isFinite(delay)?delay:10))}};
   }
   if(status===401||status===403)return {status:502,data:{error:'ai_access',retryable:false}};
   if(status===404)return {status:502,data:{error:'ai_model',retryable:false}};
   if(status===402)return {status:502,data:{error:'ai_billing',retryable:false}};
   if(status===408||status>=500){
-    const data={error:'unavailable',retryable:true};
-    const delay=Number(response.headers.get('Retry-After'));
-    if(Number.isFinite(delay)&&delay>0)data.retryAfter=Math.ceil(delay);
+    const data={error:status===408?'timeout':'unavailable',retryable:true};
+    if(retryAfter)data.retryAfter=retryAfter;
     return {status:503,data};
   }
   return {status:502,data:{error:'ai_request',retryable:false}};

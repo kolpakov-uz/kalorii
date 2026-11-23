@@ -107,20 +107,92 @@ test('cancelling an automatic retry never inserts late text or retains audio',as
  assert.equal(x.target.textContent,'Уже набрано');assert.equal(x.run('VOICE_RETRY'),null);assert.equal(x.run('VOICE'),null);
 });
 
+const reply=(status,data,headers={})=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json',...headers}});
+const flush=()=>new Promise(resolve=>setImmediate(resolve));
+function controlledRecording(respond,parts=['one']){
+ let now=100000,nextTimer=0;const timers=new Map(),requests=[],statuses=[],notices=[];
+ class Clock extends Date{static now(){return now}}
+ const x=setup({Date:Clock,setTimeout:(callback,delay)=>{const id=++nextTimer;timers.set(id,{callback,at:now+delay});return id},clearTimeout:id=>timers.delete(id),toast:(...args)=>notices.push(args),fetch:async(_url,options)=>{const request={at:now,audio:JSON.parse(options.body).audio};requests.push(request);return respond(request,requests.length)}});
+ const firstChild={set textContent(text){statuses.push(text)},get textContent(){return statuses.at(-1)}};
+ x.c.document.getElementById=id=>id==='ai'?x.target:{firstChild,remove(){}};
+ x.c.actualDelay=x.run('voiceDelay');recording(x,parts);x.run('voiceDelay=actualDelay');
+ async function advance(milliseconds){
+  const end=now+milliseconds;
+  while(true){const next=[...timers].filter(([,timer])=>timer.at<=end).sort(([,a],[,b])=>a.at-b.at)[0];if(!next)break;now=next[1].at;timers.delete(next[0]);next[1].callback();await flush()}
+  now=end;await flush();
+ }
+ return {x,requests,statuses,notices,timers,advance};
+}
+
+test('retry waits from the failed response, honors server pause, counts down and inserts one transcript',async()=>{
+ let fail;const z=controlledRecording((_request,number)=>number===1?new Promise(resolve=>fail=()=>resolve(reply(503,{error:'unavailable',retryable:true,retryAfter:30},{'Retry-After':'20'}))):reply(200,{text:'Рис, 200 граммов.'}));
+ const pending=z.x.run('voiceFinish(VOICE)');await flush();assert.equal(z.requests[0].at,100000);
+ await z.advance(10000);fail();await flush();assert.match(z.statuses.at(-1),/через 30 с/);
+ await z.advance(29999);assert.equal(z.requests.length,1);assert.ok(z.statuses.some(text=>/через 29 с/.test(text)));
+ await z.advance(1);await pending;
+ assert.deepEqual(z.requests,[{at:100000,audio:'one'},{at:140000,audio:'one'}]);
+ assert.equal(z.x.target.textContent,'Уже набрано Рис, 200 граммов.');assert.equal(z.x.run('VOICE_RETRY'),null);assert.equal(z.timers.size,0);
+});
+
+test('Retry-After HTTP date takes precedence over a shorter JSON pause',async()=>{
+ const z=controlledRecording((_request,number)=>number===1?reply(503,{error:'unavailable',retryable:true,retryAfter:10},{'Retry-After':new Date(120000).toUTCString()}):reply(200,{text:'Два яйца.'}));
+ const pending=z.x.run('voiceFinish(VOICE)');await flush();assert.match(z.statuses.at(-1),/через 20 с/);
+ await z.advance(19999);assert.equal(z.requests.length,1);await z.advance(1);await pending;assert.equal(z.requests[1].at,120000);
+});
+
+test('a temporary rate limit retries after its delay and identifies the rate limit in the countdown',async()=>{
+ const z=controlledRecording((_request,number)=>number===1?reply(429,{error:'rate',retryable:true,retryAfter:8}):reply(200,{text:'Творог.'}));
+ const pending=z.x.run('voiceFinish(VOICE)');await flush();assert.match(z.statuses.at(-1),/частые запросы/);assert.doesNotMatch(z.statuses.at(-1),/занят/);
+ await z.advance(7999);assert.equal(z.requests.length,1);await z.advance(1);await pending;assert.equal(z.requests.length,2);
+});
+
+test('daily quota, permanent failures and explicit retryable false keep audio without automatic attempts',async()=>{
+ for(const [status,error,retryable] of [[429,'quota',false],[502,'ai_access',false],[502,'ai_model',true],[502,'ai_billing',false],[502,'ai_request',false],[503,'unavailable',false]]){
+  const z=controlledRecording(()=>reply(status,{error,retryable,retryAfter:30}));await z.x.run('voiceFinish(VOICE)');
+  assert.equal(z.requests.length,1,error);assert.ok(z.x.run('VOICE_RETRY.blob.size')>0,error);assert.equal(z.x.target.textContent,'Уже набрано');
+  assert.notEqual(z.notices.at(-1)[1].type,'success');if(error==='quota')assert.match(z.notices.at(-1)[1].title,/квота/);
+  z.x.run('voiceCancel()');assert.equal(z.timers.size,0);
+ }
+});
+
+test('manual repeat cannot bypass a long server pause and the waiting request remains cancellable',async()=>{
+ const z=controlledRecording((_request,number)=>number===1?reply(503,{error:'unavailable',retryable:true,retryAfter:60}):reply(200,{text:'Повтор завершён.'}));
+ await z.x.run('voiceFinish(VOICE)');assert.equal(z.requests.length,1);assert.equal(z.x.run('VOICE'),null);
+ const pending=z.x.run('voiceRetry()');await flush();assert.match(z.statuses.at(-1),/через 60 с/);
+ await z.advance(59999);assert.equal(z.requests.length,1);await z.advance(1);await pending;
+ assert.equal(z.requests[1].at,160000);assert.equal(z.x.target.textContent,'Уже набрано Повтор завершён.');
+});
+
+test('cancelling the real countdown stops future requests, clears timers and preserves only the typed draft',async()=>{
+ const z=controlledRecording(()=>reply(503,{error:'unavailable',retryable:true,retryAfter:30}));
+ const pending=z.x.run('voiceFinish(VOICE)');await flush();await z.advance(5000);z.x.run('voiceCancel()');await pending;
+ await z.advance(60000);assert.equal(z.requests.length,1);assert.equal(z.timers.size,0);assert.equal(z.x.target.textContent,'Уже набрано');assert.equal(z.x.run('VOICE'),null);assert.equal(z.x.run('VOICE_RETRY'),null);
+});
+
+test('exhausting two delayed attempts retains only the failed fragment and manual retry keeps its new pause',async()=>{
+ let recovered=false;
+ const z=controlledRecording((request)=>request.audio==='one'?reply(200,{text:'Первая часть.'}):recovered?reply(200,{text:'Вторая часть.'}):reply(503,{error:'unavailable',retryable:true,retryAfter:10}),['one','two']);
+ const pending=z.x.run('voiceFinish(VOICE)');await flush();await z.advance(5200);assert.equal(z.requests.length,2);await z.advance(10000);await pending;
+ assert.equal(z.requests.length,3);assert.equal(z.x.target.textContent,'Уже набрано Первая часть.');assert.equal(z.x.run('VOICE_RETRY.nextPart'),1);
+ recovered=true;const repeated=z.x.run('voiceRetry()');await flush();await z.advance(9999);assert.equal(z.requests.length,3);await z.advance(1);await repeated;
+ assert.deepEqual(z.requests.map(request=>request.audio),['one','two','two','two']);assert.equal(z.x.target.textContent,'Уже набрано Первая часть. Вторая часть.');
+});
+
 test('worker reports upstream voice failures with CORS and without leaking error messages',async()=>{
  const original=globalThis.fetch,x=setup();x.c.buf=buffer;
  const audio=Buffer.from(x.run('voiceWav(buf)')).toString('base64');
  const request=()=>new Request('https://example.test',{method:'POST',headers:{Origin:'https://kolpakov-uz.github.io','CF-Connecting-IP':'voice-regression-test'},body:JSON.stringify(telegramPayload({mode:'transcribe',audio}))});
  try{
-  for(const [status,error] of [[400,'audio_rejected'],[403,'ai_access'],[503,'ai']]){
+  for(const [status,error,retryable,resultStatus] of [[400,'audio_rejected',false,502],[403,'ai_access',false,502],[404,'ai_model',false,502],[402,'ai_billing',false,502],[503,'unavailable',true,503]]){
    globalThis.fetch=async()=>new Response(JSON.stringify({error:{message:'private upstream detail'}}),{status});
    const response=await worker.fetch(request(),telegramEnvFixture),data=await response.json();
-   assert.equal(response.status,502);assert.deepEqual(data,{error,upstreamStatus:status});
+   assert.equal(response.status,resultStatus);assert.equal(data.error,error);assert.equal(data.retryable,retryable);assert.equal(data.upstreamStatus,status);assert.doesNotMatch(JSON.stringify(data),/private upstream detail/);
+   if(retryable){assert.ok(data.retryAfter>0);assert.equal(response.headers.get('Retry-After'),String(data.retryAfter))}
    assert.equal(response.headers.get('Access-Control-Allow-Origin'),'https://kolpakov-uz.github.io');
   }
   globalThis.fetch=async()=>{throw TypeError('unreachable')};
-  const offline=await worker.fetch(request(),telegramEnvFixture);assert.equal(offline.status,503);assert.deepEqual(await offline.json(),{error:'unavailable'});
+  const offline=await worker.fetch(request(),telegramEnvFixture),offlineData=await offline.json();assert.equal(offline.status,503);assert.equal(offlineData.error,'unavailable');assert.equal(offlineData.retryable,true);assert.ok(offlineData.retryAfter>0);
   globalThis.fetch=async()=>new Response('invalid JSON');
-  const malformed=await worker.fetch(request(),telegramEnvFixture);assert.equal(malformed.status,502);assert.deepEqual(await malformed.json(),{error:'transcript'});
+  const malformed=await worker.fetch(request(),telegramEnvFixture),malformedData=await malformed.json();assert.equal(malformed.status,502);assert.equal(malformedData.error,'transcript');assert.equal(malformedData.retryable,true);assert.ok(malformedData.retryAfter>0);
  }finally{globalThis.fetch=original}
 });

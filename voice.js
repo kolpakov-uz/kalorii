@@ -64,25 +64,50 @@ async function voiceEncode(blob){
  const C=window.OfflineAudioContext||window.webkitOfflineAudioContext;if(!C)throw Error('codec');const context=new C(1,1,16000),buffer=await context.decodeAudioData(await blob.arrayBuffer());
  return voiceSegments(buffer).map(part=>{const bytes=voiceWav(part);let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(binary)});
 }
-function voiceDelay(s,ms){return new Promise(resolve=>{const timer=setTimeout(()=>{s.cancelWait=null;resolve()},ms);s.cancelWait=()=>{clearTimeout(timer);s.cancelWait=null;resolve()}})}
+function voiceDelay(s,ms){return new Promise(resolve=>{
+ const until=Date.now()+ms;let timer;
+ const done=()=>{clearTimeout(timer);s.cancelWait=null;resolve()};
+ const tick=()=>{if(VOICE!==s)return done();const left=until-Date.now();if(left<=0)return done();voiceStatus(s,`${s.waitReason||'Повтор распознавания'} через ${Math.ceil(left/1000)} с…`);timer=setTimeout(tick,Math.min(1000,left))};
+ s.cancelWait=done;tick();
+})}
+function voiceRetryAfter(response,data){
+ const delays=[],body=Number(data.retryAfter),header=response.headers?.get?.('Retry-After');
+ if(Number.isFinite(body)&&body>0)delays.push(body);
+ if(header!=null&&String(header).trim()){
+  const seconds=Number(header),delay=Number.isFinite(seconds)?seconds:(Date.parse(header)-Date.now())/1000;
+  if(Number.isFinite(delay)&&delay>0)delays.push(delay);
+ }
+ return Math.max(0,...delays);
+}
+function voiceWaitReason(code){return code==='rate'?'Слишком частые запросы. Повтор':code==='quota'?'Ожидание обновления квоты. Повтор':code==='timeout'||code==='AbortError'?'Сервис не успел ответить. Повтор':code==='TypeError'||code==='network'?'Нет связи с сервисом. Повтор':code==='transcript'?'Ответ не удалось прочитать. Повтор':'Сервис временно недоступен. Повтор'}
 async function voiceRequest(s,audio){
  for(let attempt=0;attempt<2;attempt++){
   if(VOICE!==s)throw Error('cancelled');
-  if(s.lastRequest)await voiceDelay(s,Math.max(0,5200-(Date.now()-s.lastRequest)));
+  const pause=Math.max(0,(s.notBefore||0)-Date.now(),s.lastRequest?s.lastRequest+5200-Date.now():0);
+  if(pause)await voiceDelay(s,pause);
   if(VOICE!==s)throw Error('cancelled');
+  s.notBefore=0;
+  voiceStatus(s,s.parts?.length>1?`Распознаю речь… ${(s.nextPart||0)+1} / ${s.parts.length}`:'Распознаю речь…');
   s.controller=new AbortController();s.timeout=setTimeout(()=>s.controller.abort(),45000);
   try{
    s.lastRequest=Date.now();
    const response=typeof PrivateAccess!=='undefined'?await PrivateAccess.request({mode:'transcribe',audio},{signal:s.controller.signal}):await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:'transcribe',audio}),signal:s.controller.signal});
-   const data=await response.json().catch(()=>({}));
-   if(!response.ok){const code=response.status==429?'rate':data.error||'server';const transient=response.status>=500&&!['audio_rejected','ai_access'].includes(code);throw Object.assign(Error(code),{transient})}
+   const payload=await response.json().catch(()=>({})),data=payload&&typeof payload==='object'?payload:{};
+   if(!response.ok){
+    const code=data.error|| (response.status==429?'rate':'unavailable');
+    const permanent=['quota','audio_rejected','bad_audio','ai_access','ai_model','ai_billing','ai_request'].includes(code);
+    const transient=!permanent&&(data.retryable===true||data.retryable!==false&&response.status>=500);
+    throw Object.assign(Error(code),{transient,retryAfter:voiceRetryAfter(response,data)});
+   }
    if(typeof data.text!=='string')throw Object.assign(Error('transcript'),{transient:true});
    return data.text.trim();
   }catch(error){
    if(VOICE!==s)throw error;
-   if(!error.transient&&!['AbortError','TypeError'].includes(error.name))throw error;
-   if(attempt)throw error;
-   voiceStatus(s,'Сервис занят. Повторяю распознавание…');
+   const transient=error.transient||['AbortError','TypeError'].includes(error.name);
+   const delay=Math.max(0,Number(error.retryAfter)||0)*1000;
+   if(transient||delay)s.notBefore=Math.max(s.notBefore||0,Date.now()+Math.max(delay,transient?5200:0));
+   s.waitReason=voiceWaitReason(error.name==='AbortError'||error.name==='TypeError'?error.name:error.message);
+   if(!transient||attempt||delay>30000)throw error;
   }finally{clearTimeout(s.timeout)}
  }
 }
@@ -99,7 +124,7 @@ function voiceKeepForRetry(s){
 function voiceRetry(s=VOICE_RETRY){if(!s||VOICE||VOICE_RETRY!==s||!s.target.isConnected)return;VOICE_RETRY=null;VOICE=s;document.getElementById('voice-status')?.remove();return voiceFinish(s)}
 function voiceFailure(s,error){
  const code=error.name=='AbortError'?'timeout':error.name=='TypeError'?'network':error.message=='bad_audio'?'audio_rejected':error.message;
- const messages={rate:['Лимит запросов исчерпан','Попробуйте позже.'],short:['Запись слишком короткая','Скажите несколько слов и повторите запись.'],empty:['Запись пуста','Попробуйте записать сообщение ещё раз.'],codec:['Не удалось прочитать аудио','Браузер не смог подготовить запись. Попробуйте записать ещё раз.'],network:['Нет связи с сервисом','Проверьте интернет и нажмите «Повторить».'],timeout:['Сервис не успел ответить','Нажмите «Повторить», чтобы отправить запись снова.'],audio_rejected:['Сервис отклонил запись','Попробуйте записать сообщение ещё раз.'],ai_access:['Распознавание недоступно','Сервис не предоставил доступ. Попробуйте позже.']};
+ const messages={rate:['Слишком частые запросы','Дождитесь паузы и нажмите «Повторить».'],quota:['Дневная квота ИИ исчерпана','Повторите после обновления квоты. Запись доступна в этом окне.'],unavailable:['Сервис временно недоступен','Нажмите «Повторить» позже — запись доступна в этом окне.'],transcript:['Ответ распознавания не удалось прочитать','Нажмите «Повторить», чтобы обработать запись ещё раз.'],short:['Запись слишком короткая','Скажите несколько слов и повторите запись.'],empty:['Запись пуста','Попробуйте записать сообщение ещё раз.'],codec:['Не удалось прочитать аудио','Браузер не смог подготовить запись. Попробуйте записать ещё раз.'],network:['Нет связи с сервисом','Проверьте интернет и нажмите «Повторить».'],timeout:['Сервис не успел ответить','Нажмите «Повторить», чтобы отправить запись снова.'],audio_rejected:['Сервис отклонил запись','Попробуйте записать сообщение ещё раз.'],ai_access:['Распознавание недоступно','Сервис не предоставил доступ. Запись можно повторить после восстановления доступа.'],ai_model:['Модель распознавания недоступна','Попробуйте повторить позже. Запись доступна в этом окне.'],ai_billing:['Доступ к ИИ приостановлен','Попробуйте позже. Запись доступна в этом окне.'],ai_request:['Сервис не принял запрос','Попробуйте повторить позже. Запись доступна в этом окне.']};
  const [title,message]=messages[code]||['Не удалось распознать запись','Сервис временно не ответил. Нажмите «Повторить».'];
  const retry=!!s.blob&&s.target.isConnected&&!['short','empty','codec','audio_rejected'].includes(code);
  if(retry)voiceKeepForRetry(s);else voiceCancel();

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import {createHash} from 'node:crypto';
 import {generateContent} from '../worker/gemini.js';
 import {aiFailure} from '../worker/ai-errors.js';
 import {foodRequest} from '../worker/food.js';
@@ -14,6 +15,9 @@ const body = foodRequest({mode:'photo',image:'ZmFrZS1pbWFnZQ==',text:'50 г ва
 const answer = text=>Response.json({candidates:[{finishReason:'STOP',content:{parts:[{text}]}}]});
 const success = ()=>answer('{"reply":"Готово","actions":[]}');
 const quota = ()=>Response.json({error:{details:[{'@type':'type.googleapis.com/google.rpc.QuotaFailure',violations:[{quotaId:'GenerateRequestsPerDayPerProjectPerModel-FreeTier'}]}]}},{status:429});
+const voiceBody={contents:[{role:'user',parts:[{inlineData:{mimeType:'audio/wav',data:'fixture-audio'}}]}],generationConfig:{responseMimeType:'application/json',maxOutputTokens:1800,temperature:0}};
+const speech=()=>answer('{"transcript":"Творог, 200 граммов."}');
+const latch=()=>{let resolve;const promise=new Promise(done=>{resolve=done});return {promise,resolve}};
 
 function fixture() {
   const records = new Map();
@@ -277,4 +281,131 @@ test('the normal Worker entry point uses the chain for text, photos, coach chat 
     }
     t.mock.restoreAll();
   }
+});
+
+test('invalid food replies affect dish and photo together, while voice and coach failures stay independent',async t=>{
+  const x=fixture();let phase='food';
+  const calls=backend(t,({model})=>{
+    if(model===primary&&(phase==='food'||phase==='bad-voice'))return answer('{}');
+    return phase.includes('voice')?speech():success();
+  });
+  await generateContent(x.env,body,'dish');
+  await generateContent(x.env,body,'photo');
+  phase='voice';assert.equal((await generateContent(x.env,voiceBody,'transcribe')).status,200);
+  phase='chat';assert.equal((await generateContent(x.env,body,'chat')).status,200);
+  phase='bad-voice';assert.equal((await generateContent(x.env,voiceBody,'transcribe')).status,200);
+  phase='chat';assert.equal((await generateContent(x.env,body,'chat')).status,200);
+  phase='voice';assert.equal((await generateContent(x.env,voiceBody,'transcribe')).status,200);
+  assert.deepEqual(calls.map(call=>call.model),[primary,secondary,secondary,primary,primary,primary,secondary,primary,secondary]);
+  assert.deepEqual(x.writes.map(write=>write.key.split(':').at(-1)),['food','transcribe']);
+  assert.ok(x.writes.every(write=>write.key.startsWith('gemini:cooldown:v2:')));
+});
+
+test('old shared request-failure cooldowns are ignored after migration without discarding real shared limits',async t=>{
+  const x=fixture(),scope=createHash('sha256').update(x.env.GEMINI_KEY).digest('hex').slice(0,24);
+  x.records.set('gemini:cooldown:v1:'+scope+':'+primary,JSON.stringify({status:502,error:'invalid_response',until:Date.now()+30000}));
+  const calls=backend(t,speech);
+  assert.equal((await generateContent(x.env,voiceBody,'transcribe')).status,200);
+  assert.deepEqual(calls.map(call=>call.model),[primary]);
+});
+
+test('daily quota, short rate, access and model cooldowns remain shared across food, voice and coach modes',async t=>{
+  for(const failure of [quota,()=>Response.json({}, {status:429,headers:{'Retry-After':'8'}}),()=>Response.json({}, {status:403}),()=>Response.json({}, {status:404})]){
+    const x=fixture();
+    const calls=backend(t,({model,body:request})=>model===primary?failure():request.contents[0].parts[0].inlineData?.mimeType==='audio/wav'?speech():success());
+    assert.equal((await generateContent(x.env,body,'dish')).status,200);
+    assert.equal((await generateContent(x.env,voiceBody,'transcribe')).status,200);
+    assert.equal((await generateContent(x.env,body,'chat')).status,200);
+    assert.deepEqual(calls.map(call=>call.model),[primary,secondary,secondary,secondary]);
+    assert.equal(x.writes.length,1);assert.ok(x.writes[0].key.startsWith('gemini:cooldown:v1:'));assert.ok(x.writes[0].key.endsWith(':'+primary));
+    t.mock.restoreAll();
+  }
+});
+
+test('the first failed response and subsequent cached responses carry the actual remaining cooldown',async t=>{
+  const x=fixture();let now=Date.parse('2026-11-23T12:00:00Z');t.mock.method(Date,'now',()=>now);
+  const calls=backend(t,({model})=>{
+    if(model===primary)return answer('{}');
+    if(model===secondary){now+=5000;return quota()}
+    now+=10000;return Response.json({}, {status:503});
+  });
+  const first=await generateContent(x.env,body,'dish');
+  assert.equal(first.headers.get('Retry-After'),'15');assert.deepEqual(await aiFailure(first),{status:502,data:{error:'invalid_response',retryable:true,retryAfter:15}});
+  now+=5000;
+  const cached=await generateContent(x.env,body,'photo');
+  assert.equal(cached.headers.get('Retry-After'),'10');assert.deepEqual(await aiFailure(cached),{status:502,data:{error:'invalid_response',retryable:true,retryAfter:10}});
+  assert.equal(calls.length,3);
+});
+
+test('mixed quota, rate and invalid replies select the earliest usable model on initial and cached failures',async t=>{
+  const x=fixture();let now=Date.parse('2026-11-23T12:00:00Z');t.mock.method(Date,'now',()=>now);
+  const calls=backend(t,({model})=>model===primary?quota():model===secondary?Response.json({}, {status:429,headers:{'Retry-After':'12'}}):answer('{}'));
+  const first=await generateContent(x.env,voiceBody,'transcribe');
+  assert.deepEqual(await aiFailure(first),{status:429,data:{error:'rate',retryable:true,retryAfter:12}});
+  now+=5000;
+  const cached=await generateContent(x.env,voiceBody,'transcribe');
+  assert.deepEqual(await aiFailure(cached),{status:429,data:{error:'rate',retryable:true,retryAfter:7}});assert.equal(calls.length,3);
+});
+
+test('network failures return safe retry metadata immediately and their cooldown does not block voice',async t=>{
+  const x=fixture();let fail=true;
+  const calls=backend(t,()=>{if(fail)throw TypeError('private network detail fixture-only-api-key fixture-audio');return speech()});
+  const response=await generateContent(x.env,body,'dish');
+  assert.equal(response.status,503);assert.deepEqual(await aiFailure(response.clone()),{status:503,data:{error:'unavailable',retryable:true,retryAfter:30}});
+  assert.doesNotMatch(await response.text(),/private network detail|fixture-only-api-key|fixture-audio/);assert.doesNotMatch(JSON.stringify(x.writes),/private network detail|fixture-only-api-key|fixture-audio/);
+  fail=false;assert.equal((await generateContent(x.env,voiceBody,'transcribe')).status,200);assert.equal(calls.length,4);
+});
+
+test('upstream Retry-After longer than the default cooldown is honored for first and cached failures',async t=>{
+  const x=fixture();let now=Date.parse('2026-11-23T12:00:00Z');t.mock.method(Date,'now',()=>now);
+  const calls=backend(t,()=>Response.json({error:{message:'private failure'}},{status:503,headers:{'Retry-After':'70'}}));
+  assert.equal((await aiFailure(await generateContent(x.env,body,'photo'))).data.retryAfter,70);
+  now+=10000;assert.equal((await aiFailure(await generateContent(x.env,body,'dish'))).data.retryAfter,60);assert.equal(calls.length,3);
+});
+
+test('normalized failures preserve numeric and HTTP-date pauses, including an immediate zero-second rate retry',async t=>{
+  const now=Date.parse('2026-11-23T12:00:00Z');t.mock.method(Date,'now',()=>now);
+  assert.equal((await aiFailure(Response.json({}, {status:429,headers:{'Retry-After':'0'}}))).data.retryAfter,1);
+  const date=new Date(now+45000).toUTCString();
+  assert.deepEqual(await aiFailure(Response.json({error:{code:'invalid_response'}}, {status:502,headers:{'Retry-After':date}})),{status:502,data:{error:'invalid_response',retryable:true,retryAfter:45}});
+  assert.deepEqual(await aiFailure(Response.json({}, {status:408,headers:{'Retry-After':'17'}})),{status:503,data:{error:'timeout',retryable:true,retryAfter:17}});
+});
+
+test('real Google overload is shared across modes instead of being confused with local transport failures',async t=>{
+  const x=fixture();
+  const calls=backend(t,({model,body:request})=>model===primary?Response.json({error:{message:'private overload'}},{status:503,headers:{'Retry-After':'45'}}):request.contents[0].parts[0].inlineData?.mimeType==='audio/wav'?speech():success());
+  await generateContent(x.env,body,'dish');await generateContent(x.env,voiceBody,'transcribe');await generateContent(x.env,body,'chat');
+  assert.deepEqual(calls.map(call=>call.model),[primary,secondary,secondary,secondary]);
+  assert.equal(x.writes.length,1);assert.ok(x.writes[0].key.startsWith('gemini:cooldown:v1:'));assert.equal(JSON.parse(x.writes[0].value).scope,'model');
+});
+
+test('voice models receive twelve seconds before timeout and can fall through to the next model',async t=>{
+  const x=fixture(),started=latch();t.mock.timers.enable({apis:['setTimeout']});t.mock.method(Date,'now',()=>Date.parse('2026-11-23T12:00:00Z'));
+  const calls=backend(t,({model,options})=>{
+    if(model!==primary)return speech();
+    started.resolve();return new Promise((_resolve,reject)=>options.signal.addEventListener('abort',()=>reject(new DOMException('private timeout','AbortError'))));
+  });
+  const pending=generateContent(x.env,voiceBody,'transcribe');await started.promise;t.mock.timers.tick(11999);assert.equal(calls[0].options.signal.aborted,false);
+  t.mock.timers.tick(1);assert.equal((await pending).status,200);assert.equal(calls[0].options.signal.aborted,true);assert.equal(calls[1].model,secondary);
+  assert.equal(JSON.parse(x.writes[0].value).error,'timeout');assert.ok(x.writes[0].key.endsWith(':transcribe'));
+});
+
+test('local timeouts retain their own error category and first/cached retry delay',async t=>{
+  const x=fixture(),started=latch();x.env.MODEL_FALLBACKS='';t.mock.timers.enable({apis:['setTimeout']});t.mock.method(Date,'now',()=>Date.parse('2026-11-23T12:00:00Z'));
+  const calls=backend(t,({options})=>{started.resolve();return new Promise((_resolve,reject)=>options.signal.addEventListener('abort',()=>reject(new DOMException('private timeout','AbortError'))))});
+  const pending=generateContent(x.env,voiceBody,'transcribe');await started.promise;t.mock.timers.tick(12000);
+  const response=await pending;assert.equal(response.status,408);assert.deepEqual(await aiFailure(response),{status:503,data:{error:'timeout',retryable:true,retryAfter:30}});
+  const cached=await generateContent(x.env,voiceBody,'transcribe');assert.deepEqual(await aiFailure(cached),{status:503,data:{error:'timeout',retryable:true,retryAfter:30}});assert.equal(calls.length,1);
+});
+
+test('hanging KV reads and writes each yield after 250ms so fallback completes and local cooldown survives',async t=>{
+  const x=fixture(),firstRead=latch(),firstCall=latch(),write=latch(),nextRead=latch();let reads=0;
+  x.env.SUBS={get:()=>{reads++;if(reads===2)firstRead.resolve();if(reads===4)nextRead.resolve();return new Promise(()=>{})},put:()=>{write.resolve();return new Promise(()=>{})}};
+  t.mock.timers.enable({apis:['setTimeout']});t.mock.method(Date,'now',()=>Date.parse('2026-11-23T12:00:00Z'));
+  const calls=backend(t,({model})=>{firstCall.resolve();return model===primary?answer('{}'):success()});
+  const pending=generateContent(x.env,body,'dish');await firstRead.promise;t.mock.timers.tick(249);assert.equal(calls.length,0);
+  t.mock.timers.tick(1);await firstCall.promise;await write.promise;t.mock.timers.tick(250);await nextRead.promise;t.mock.timers.tick(250);
+  assert.equal((await pending).status,200);assert.deepEqual(calls.map(call=>call.model),[primary,secondary]);
+  const readCount=reads;x.env.SUBS.get=async()=>null;
+  assert.equal((await generateContent(x.env,body,'photo')).status,200);assert.equal(reads,readCount);assert.deepEqual(calls.map(call=>call.model),[primary,secondary,secondary]);
 });

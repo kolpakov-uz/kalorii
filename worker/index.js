@@ -37,8 +37,8 @@ async function tick(env){const raw=await env.SUBS.get('subs');if(!raw)return;con
 const hits=new Map();
 export default{async fetch(req,env){
  const allow=env.ORIGIN||'https://kolpakov-uz.github.io';
- const cors={'Access-Control-Allow-Origin':allow,'Access-Control-Allow-Methods':'POST,OPTIONS','Access-Control-Allow-Headers':'Content-Type','Vary':'Origin'};
- const j=(o,s=200)=>new Response(JSON.stringify(o),{status:s,headers:{...cors,'Content-Type':'application/json','Cache-Control':'no-store'}});
+ const cors={'Access-Control-Allow-Origin':allow,'Access-Control-Allow-Methods':'POST,OPTIONS','Access-Control-Allow-Headers':'Content-Type','Access-Control-Expose-Headers':'Retry-After','Vary':'Origin'};
+ const j=(o,s=200)=>new Response(JSON.stringify(o),{status:s,headers:{...cors,'Content-Type':'application/json','Cache-Control':'no-store',...(Number.isFinite(o?.retryAfter)&&o.retryAfter>0?{'Retry-After':String(Math.ceil(o.retryAfter))}:{})}});
  if(req.method=='OPTIONS')return new Response(null,{headers:cors});
  if(req.method!='POST'||req.headers.get('Origin')!=allow)return j({error:'forbidden'},403);
  if(+req.headers.get('Content-Length')>2e6)return j({error:'too_big'},413);
@@ -77,7 +77,7 @@ export default{async fetch(req,env){
   await env.SUBS.put('subs',JSON.stringify(subs));return j({text:'ok'})}
  let body;
  if(b.mode=='transcribe'){
-  try{body=transcriptionBody(b.audio)}catch{return j({error:'bad_audio'},400)}
+  try{body=transcriptionBody(b.audio)}catch{return j({error:'bad_audio',retryable:false},400)}
  }else if(b.mode=='photo'||b.mode=='dish'&&typeof b.text=='string'){
   try{body=foodRequest(b)}catch(error){return j({error:error.message},error.status||400)}
  }else if(b.mode=='chat'&&Array.isArray(b.messages)){
@@ -87,18 +87,18 @@ export default{async fetch(req,env){
  }else return j({error:'bad'},400);
  let r;
  try{r=await generateContent(env,body,b.mode)}
- catch(e){return j(b.mode=='transcribe'?{error:'unavailable'}:{error:'unavailable',retryable:true},503)}
- if(r.status==429&&b.mode=='transcribe')return j({error:'rate'},429);
+ catch(e){return j({error:'unavailable',retryable:true,retryAfter:10},503)}
  if(!r.ok){
+  const failure=await aiFailure(r.clone());
   if(b.mode=='transcribe'){
    // Expose only status categories, never upstream messages, audio or secrets.
-   if((await aiFailure(r.clone())).data.error==='invalid_response')return j({error:'transcript'},502);
-   return j({error:r.status==400?'audio_rejected':r.status==401||r.status==403?'ai_access':'ai',upstreamStatus:r.status},502);
+   const error=r.status==400?'audio_rejected':failure.data.error==='invalid_response'?'transcript':failure.data.error;
+   return j({...failure.data,error,upstreamStatus:r.status},failure.status);
   }
-  const failure=await aiFailure(r);return j(failure.data,failure.status);
+  return j(failure.data,failure.status);
  }
- let d;try{d=await r.json()}catch(e){return j(b.mode=='transcribe'?{error:'transcript'}:{error:'invalid_response',retryable:true},502)}
- if(b.mode=='transcribe'){try{return j({text:transcriptionText(d)})}catch{return j({error:'transcript'},502)}}
+ let d;try{d=await r.json()}catch(e){return j({error:b.mode=='transcribe'?'transcript':'invalid_response',retryable:true,retryAfter:5},502)}
+ if(b.mode=='transcribe'){try{return j({text:transcriptionText(d)})}catch{return j({error:'transcript',retryable:true,retryAfter:5},502)}}
  if(b.mode=='photo'||b.mode=='dish'){
   try{return j({text:foodText(d)})}catch(error){return j({error:error.message,retryable:error.retryable},502)}
  }
