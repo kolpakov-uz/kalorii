@@ -13,7 +13,7 @@ const DiaryBackup=(()=>{
  const shape=spec=>v=>{obj(v);const out={};for(const [key,read] of Object.entries(spec))if(v[key]!==undefined)out[key]=read(v[key]);return out};
  const required=(read,keys)=>v=>{const out=read(v);for(const k of keys)if(out[k]===undefined)fail();return out};
  const map=(read,keyRead=text)=>v=>Object.fromEntries(Object.entries(obj(v)).map(([key,value])=>[keyRead(key),read(value)]));
- const macros={k:num,p:num,f:num,c:num},food=required(shape({id,n:text,g:num,m:choice('b','l','d','s'),dishId:id,...macros}),['id','n','g','m','k','p','f','c']);
+ const macros={k:num,p:num,f:num,c:num},food=required(shape({id,n:text,g:num,m:choice('b','l','d','s'),dishId:id,per100:required(shape(macros),['k','p','f','c']),nutritionOrigin:choice('manual','estimate','usda','off'),nutritionCached:bool,...macros}),['id','n','g','m','k','p','f','c']);
  const savedFood=required(shape({id,n:text,d:text,g:num,aliases:array(text),meals:array(choice('b','l','d','s')),pinned:bool,hidden:bool,custom:bool,mergedInto:id,...macros}),['n','k','p','f','c']);
  const profile=required(shape({sex:choice('m','f'),a:num,h:num,w:num,act:num,goal:choice('lose','gain','abs','keep')}),['sex','a','h','w','act','goal']);
  const goal=required(shape({type:choice('abs','lose','arm','fat'),m:choice('waist','weight','arm','bf'),start:num,target:num,startDate:date}),['type','m','start','target','startDate']);
@@ -26,6 +26,10 @@ const DiaryBackup=(()=>{
   const input=obj(envelope.data),out={profile:null,log:{},water:{},weights:[],custom:null,foods:[],goal:null,meas:[],coachMode:'strict',wk:[],wkGoal:3,wkPlanMinutes:45,dc:{},rem:{on:{},t:{},fired:{}},chat:[],hist:{}};
   const readers={profile:nullable(profile),log:map(array(food),date),water:map(num,date),weights:array(required(shape({d:date,w:num}),['d','w'])),custom:nullable(required(shape({p:num,f:num,c:num}),['p','f','c'])),foods:array(savedFood),goal:nullable(goal),meas:array(required(shape({d:date,waist:num,neck:num,hip:num,arm:num,weight:num,bf:num}),['d'])),coachMode:choice('soft','strict','hard'),wk:array(required(shape({id,d:date,t:array(choice('str','abs','cardio')),m:num}),['id','d','t','m'])),wkGoal:num,wkPlanMinutes:choice(15,30,45,60,75,90,105,120,135,150,165,180),dc:map(cache),chat:array(required(shape({role:choice('user','assistant'),content:text}),['role','content'])),hist:map(array(history),pattern(/^\d{4}-\d{2}-\d{2}\|[blds]$/)),ownKb:bool};
   for(const [key,read] of Object.entries(readers))if(input[key]!==undefined)out[key]=read(input[key]);
+  if(input.nutrition){
+   const row=required(shape({key:text,n:text,aliases:array(text),origin:choice('manual','estimate','usda','off'),source:text,ref:text,checkedAt:num,updatedAt:num,sourceAttemptAt:num,...macros}),['key','n','k','p','f','c','origin','checkedAt','updatedAt']);
+   out.nutrition=required(shape({version:choice(1),rows:array(row),defaults:map(choice('raw','boiled','fried','baked','braised'),choice('chicken','rice','buckwheat','oats'))}),['version','rows'])(input.nutrition);
+  }
   const catalog=new Map(out.foods.filter(food=>food.id).map(food=>[food.id,food])),resolved=new Set();
   for(const food of out.foods){
    if(!food.mergedInto)continue;
@@ -43,7 +47,7 @@ const DiaryBackup=(()=>{
   if(out.wkGoal<1||out.wkGoal>7)fail();
   return out;
  }
- function stringify(state){return JSON.stringify({format:'kalorii-backup',version:1,exportedAt:new Date().toISOString(),data:state})}
+ function stringify(state){return JSON.stringify({format:'kalorii-backup',version:1,exportedAt:new Date().toISOString(),nutritionAttribution:{usda:'USDA FoodData Central — CC0 — https://fdc.nal.usda.gov/',openFoodFacts:'Open Food Facts — ODbL 1.0 / DbCL — https://world.openfoodfacts.org/ — https://opendatacommons.org/licenses/odbl/1-0/'},data:state})}
  function store(storage,key,state,previousState){const encoded=JSON.stringify(state),previous=storage.getItem(key);if(previous!==null||previousState!==undefined)storage.setItem(key+'-before-import',previous??JSON.stringify(previousState));storage.setItem(key,encoded)}
  return {parse,stringify,store};
 })();

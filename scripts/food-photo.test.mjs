@@ -13,7 +13,7 @@ const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
 const source=html.slice(html.indexOf("let meal='b';"),html.indexOf('function openAdd('));
 const date='2026-11-11';
 
-function setup(initial={}) {
+function setup(initial={},nutrition=false) {
   const state={log:{},hist:{},foods:[],dc:{},...initial};
   const fields={
     '#ai':{textContent:'',innerHTML:'',dataset:{},focus(){},closest(){return {querySelector(){return {disabled:false}}}}},
@@ -35,6 +35,7 @@ function setup(initial={}) {
   vm.runInContext(fs.readFileSync(new URL('../food-request.js',import.meta.url),'utf8'),context);
   vm.runInContext(fs.readFileSync(new URL('../food-tasks.js',import.meta.url),'utf8'),context);
   vm.runInContext(fs.readFileSync(new URL('../dish-catalog.js',import.meta.url),'utf8'),context);
+  if(nutrition){vm.runInContext(fs.readFileSync(new URL('../nutrition.js',import.meta.url),'utf8'),context);context.NutritionUI={schedule(){},cancel(){},requestChoice(){return false}};}
   vm.runInContext(html.slice(html.indexOf('function saveFood('),html.indexOf('\nlet UNDO=',html.indexOf('function saveFood('))),context);
   context.testBubble=()=>{let markup='';const bubble={textContent:'',get innerHTML(){return markup},set innerHTML(value){markup=value;progress.push(value)}};bubbles.push(bubble);return bubble};
   vm.runInContext(source,context);
@@ -48,6 +49,28 @@ function setup(initial={}) {
   };
 }
 const pictures=body=>body.contents.flatMap(turn=>turn.parts.filter(part=>part.inlineData).map(part=>part.inlineData));
+test('an exact product uses the nutrition database without AI and keeps its original per-100 values',async()=>{
+ const x=setup({},true);x.run("Nutrition.remember(S,{n:'Банан',k:97,p:.74,f:.29,c:23},'', 'estimate')");
+ const checked=x.state.nutrition.rows[0].checkedAt;
+ await x.send('Банан 33 г');await x.send('Банан 200 г');
+ assert.equal(x.requests.length,0);assert.equal(x.entries()[0].k,32);assert.equal(x.entries()[1].k,194);
+ assert.equal(x.entries()[0].per100.k,97);assert.equal(x.state.nutrition.rows[0].checkedAt,checked);
+});
+test('new AI results populate the private database immediately and future portions bypass AI',async()=>{
+ const x=setup({},true);x.reply({actions:[{op:'add',name:'Сюзьма 5%',grams:200,kcal100:111,protein100:10.7,fat100:5,carbs100:5.8}],reply:'Примерная оценка'});
+ await x.send('Сюзьма 5% 200 г');assert.equal(x.requests.length,1);
+ assert.equal(x.state.nutrition.rows[0].p,10.7);
+ await x.send('Сюзьма 5% 50 г');assert.equal(x.requests.length,1);assert.equal(x.entries()[1].k,56);
+});
+test('explicit per-100 correction updates future portions while changing only weight leaves the base unchanged',async()=>{
+ const x=setup({},true);x.reply({actions:[{op:'add',name:'Сюзьма 5%',grams:200,kcal100:111,protein100:10.7,fat100:5,carbs100:5.8}],reply:'Оценка'});
+ await x.send('Сюзьма 5% 200 г');const id=x.entries()[0].id;
+ x.reply({actions:[{op:'edit',id,kcal100:123,protein100:12,fat100:5,carbs100:6}],reply:'Исправлено'});
+ await x.send('Исправь: на 100 г 123 ккал, белки 12, жиры 5, углеводы 6');
+ assert.equal(x.state.nutrition.rows.find(r=>r.n==='Сюзьма 5%').origin,'manual');
+ await x.send('50 г');assert.equal(x.entries()[0].per100.k,123);
+ await x.send('Сюзьма 5% 100 г');assert.equal(x.entries().at(-1).k,123);assert.equal(x.requests.length,2);
+});
 async function until(predicate){for(let i=0;i<40&&!predicate();i++)await Promise.resolve();assert.ok(predicate(),'expected asynchronous task state')}
 
 test('independent meals calculate concurrently, retain separate context and save out-of-order answers to their own messages',async()=>{

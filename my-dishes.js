@@ -108,6 +108,7 @@ const MyDishes=(()=>{
       clearCache(dish);
       Object.assign(dish,values,{n:name,aliases:[...new Set([dish.n,...aliases].map(value=>value.trim().slice(0,1000)))].slice(0,50),meals:MEALS.filter(([key])=>document.querySelector(`[data-md-meal="${key}"]`).checked).map(([key])=>key),pinned:field('md-pinned').checked,hidden:false,custom:true});
     }))return;
+    if(typeof NutritionUI!=='undefined')NutritionUI.manual(dish);
     back();refresh();toast('Блюдо сохранено',{type:'success'});
   }
   function confirmRemove(id){

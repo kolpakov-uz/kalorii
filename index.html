@@ -259,10 +259,14 @@ button{transition:transform .12s ease,filter .12s,background .2s,opacity .2s}
 <script src="goal-ui.js?v=motivation1"></script>
 <script src="food-request.js?v=retry3"></script>
 <script src="food-tasks.js?v=tasks1"></script>
+<script src="nutrition.js?v=nutrition1"></script>
+<script src="nutrition-seed.js?v=nutrition1"></script>
+<script src="nutrition-ui.js?v=nutrition1"></script>
+<link rel="stylesheet" href="nutrition.css?v=nutrition1">
 <script src="dish-catalog.js?v=dishes1"></script>
 <script src="my-dishes.js?v=dishes1"></script>
 <link rel="stylesheet" href="my-dishes.css?v=dishes1">
-<script src="diary-backup.js?v=tasks1"></script>
+<script src="diary-backup.js?v=nutrition1"></script>
 <script src="diary-transfer.js"></script>
 <script src="notifications.js"></script>
 <script src="telegram-access.js?v=browser1"></script>
@@ -279,6 +283,8 @@ const cur=()=>DAY||today();
 S.foods=S.foods||[];S.weights=S.weights||[];S.hist=S.hist||{};S.meas=S.meas||[];S.coachMode=S.coachMode||'strict';S.wk=S.wk||[];S.wkGoal=S.wkGoal||3;S.wkPlanMinutes=Number.isInteger(S.wkPlanMinutes)&&S.wkPlanMinutes>=15&&S.wkPlanMinutes<=180&&S.wkPlanMinutes%15===0?S.wkPlanMinutes:45;S.dc=S.dc||{};
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){return false}schedSync();return true};
 DishCatalog.init(S);
+Nutrition.merge(S,NutritionSeed);
+for(const dish of S.foods)if(!dish.hidden&&!Nutrition.store(S).rows.some(row=>row.key===Nutrition.key(dish.n)))Nutrition.remember(S,dish,'',dish.custom?'manual':'estimate');
 const today=()=>new Date().toLocaleDateString('sv'),R=Math.round;
 const items=d=>S.log[d]||[];
 const tot=d=>items(d).reduce((a,i)=>({k:a.k+i.k,p:a.p+i.p,f:a.f+i.f,c:a.c+i.c}),{k:0,p:0,f:0,c:0});
@@ -330,7 +336,7 @@ window.addEventListener('resize',fixVV);
 document.addEventListener('focusin',fixVV);
 document.addEventListener('focusout',()=>requestAnimationFrame(fixVV));
 function closeSheet(skip){if(MyDishes.back(skip))return;voiceCancel();kbClose();const o=document.querySelector('#sheet .ov'),food=o?.classList.contains('food-dialog'),t=++CS;if(o?.contains(document.activeElement))document.activeElement.blur();if(o&&!skip)o.classList.add('out');setTimeout(()=>{if(t==CS){$('#sheet').innerHTML='';unlockBody();telegramBackState();if(food&&V!=='coach'&&typeof render==='function')render()}},o?220:0)}
-function render(){voiceCancel();telegramBackState();
+function render(){voiceCancel();telegramBackState();NutritionUI.start();
  $('#browser-link').hidden=!KaloriiTelegram.active||!PrivateAccess.allowed;
  $('#tabs').parentElement.hidden=!PrivateAccess.allowed;
  if(!PrivateAccess.allowed){$('#sheet').innerHTML='';unlockBody();telegramBackState();$('#app').innerHTML=PrivateAccess.markup(!!S.profile||Object.keys(S.log).length>0);return}
@@ -402,7 +408,7 @@ function am(h,cls){const c=$('#am'),h0=c.querySelector('.hint');if(h0)h0.remove(
 function think(w){w.innerHTML='<span class="dots"><i></i><i></i><i></i></span><small class="th" role="status">Считаю КБЖУ…</small>';return()=>{}}
 function addEntry(o,d,day,commit=true){const L=items(day);S.log[day]=L;o.id=Date.now()+Math.random().toString(36).slice(2,6);L.push(o);saveFood(o.n,o.g,o.k,o.p,o.f,o.c,d===false?'':d||'',o);if(commit){save();render()}return o.id}
 function rmE(id,b){S.log[cur()]=items(cur()).filter(x=>x.id!=id);save();render();const r=b.closest('.rc');r.style.cssText='opacity:.3;transform:scale(.97)';b.remove()}
-function quick(i,event){if(MyDishes.consumeClick(event))return;const e=FQ[i];if(!e)return;const k=hk(),day=cur(),mk=meal,g=e.g||100;am(esc(e.n),'me');pushH({r:'me',t:e.n},k);const id=addEntry({m:mk,n:e.n,g,k:R(e.k*g/100),p:R(e.p*g/100),f:R(e.f*g/100),c:R(e.c*g/100),dishId:e.id},false,day),w=am('','ai'),stop=think(w);pushH({r:'ai',ids:[id]},k);drawFq();sleep(350).then(()=>{stop();w.innerHTML=resHtml([id],day,mk)})}
+function quick(i,event){if(MyDishes.consumeClick(event))return;const e=FQ[i];if(!e)return;const k=hk(),day=cur(),mk=meal,g=e.g||100;am(esc(e.n),'me');pushH({r:'me',t:e.n},k);const id=addEntry({m:mk,n:e.n,g,k:R(e.k*g/100),p:R(e.p*g/100),f:R(e.f*g/100),c:R(e.c*g/100),per100:{k:e.k,p:e.p,f:e.f,c:e.c},nutritionCached:true,dishId:e.id},false,day),w=am('','ai'),stop=think(w);pushH({r:'ai',ids:[id]},k);drawFq();sleep(350).then(()=>{stop();w.innerHTML=resHtml([id],day,mk)})}
 function attach(f){if(!f)return;foodReply=null;drawFoodReply();AF=f;sbtn($('#ai'));$('#mn').hidden=true;$('#pv').innerHTML=`<div class="pvi"><img alt="" src="${URL.createObjectURL(f)}"><button class="x" aria-label="Убрать фото" onclick="AF=null;$('#pv').innerHTML='';sbtn($('#ai'))">×</button></div>`;$('#ai').dataset.ph='Вес или состав…'}
 const NSTOP=new Set(['я','съел','съела','ел','ела','на','с','со','и','в','завтрак','обед','ужин','перекус','порцию','порция','порции','примерно','около','г','гр','грамм','мл','кг','шт','только','от','блюда','блюдо','этого','это','всего','часть','ещё','еще','добавь','запиши','записал','записала','мне','моё','мое','сегодня','вчера','пол','половину','половина','треть','четверть','процентов','процента','процент']),CORR=/(исправ|измени|поменя|поправ|замени|вместо|на самом деле|ошиб|не так|не то|это не|убер|удал)/i,DEL=/(убер|удал)/i;
 function parsePortion(t){t=t.toLowerCase();let m=t.match(/(?:съел[аи]?|только|ела)\s+(?:около\s+)?(\d{1,3})\s*%/)||t.match(/(\d{1,3})\s*%\s*от\s/);if(m){const v=+m[1];if(v>0&&v<=100)return v/100}
@@ -421,11 +427,11 @@ function parseGrams(text,requireSingle=false){
 function normKey(t){t=t.toLowerCase().replace(/(?:съел[аи]?|только|ела)\s+(?:около\s+)?\d{1,3}\s*%/g,' ').replace(/\d{1,3}\s*%\s*от(?=\s|$)/g,' ').replace(/\d+(?:[.,]\d+)?\s*(?:кг|г|гр|грамм[а-я]*|g|мл|шт[а-я]*)(?=\s|$|[,.;])/g,' ');return t.replace(/(\d)\s*%/g,'$1%').split(/[\s,.;:()!?]+/).filter(w=>w&&!NSTOP.has(w)&&!/^\d+([.,]\d+)?$/.test(w)).join(' ')}
 const cl=(v,m)=>Math.min(m,Math.max(0,+v||0));
 function lastEntry(day,mk){const L=items(day).filter(x=>x.m==mk);return L.length?L.at(-1):null}
-function scaleEntry(e,g){const f=g/e.g;e.k=R(e.k*f);e.p=R(e.p*f);e.f=R(e.f*f);e.c=R(e.c*f);e.g=g}
+function scaleEntry(e,g){const f=g/e.g;for(const k of ['k','p','f','c'])e[k]=R(e.per100?e.per100[k]*g/100:e[k]*f);e.g=g}
 function localEdit(e,pf,pg,text,day){if(DEL.test(text)){S.log[day]=items(day).filter(x=>x.id!=e.id);save();render();return{ids:[],msg:'Удалено: '+e.n}}scaleEntry(e,Math.max(1,Math.round(pf?e.g*pf:pg)));save();render();return{ids:[e.id],lbl:'Исправлено'}}
-function fromCache(c,pf,pg,text,day,mk,commit=true){const g=Math.max(1,Math.round((pg||c.g)*(pf||1))),id=addEntry({m:mk,n:c.n,g,k:R(c.k*g/100),p:R(c.p*g/100),f:R(c.f*g/100),c:R(c.c*g/100),...(c.dishId?{dishId:c.dishId}:{})},text,day,commit);return{ids:[id],lbl:'Добавлено'}}
+function fromCache(c,pf,pg,text,day,mk,commit=true){const g=Math.max(1,Math.round((pg||c.g)*(pf||1))),id=addEntry({m:mk,n:c.n,g,k:R(c.k*g/100),p:R(c.p*g/100),f:R(c.f*g/100),c:R(c.c*g/100),per100:{k:c.k,p:c.p,f:c.f,c:c.c},nutritionOrigin:c.origin||'estimate',nutritionCached:true,...(c.dishId?{dishId:c.dishId}:{})},text,day,commit);return{ids:[id],lbl:'Добавлено',reply:c.origin==='estimate'?'Приблизительная пищевая ценность.':''}}
 function normAct(a){if(!a||typeof a!='object')return null;const T={add_food:'add',edit_food:'edit',delete_food:'delete'},op=a.op||T[a.type]||((a.name||a.n)&&a.type==null?'add':null);if(!op)return null;const r={...a,op};if(op=='add'){const g=+a.grams||+a.g||100;r.name=a.name||a.n;r.grams=g;[['kcal100','kcal'],['protein100','protein'],['fat100','fat'],['carbs100','carbs']].forEach(([p,t])=>{if(r[p]==null&&a[t]!=null)r[p]=(+a[t]||0)/g*100})}return r}
-function foodResponse(raw,day,allowedIds){
+function foodResponse(raw,day,allowedIds,query){
  const response=JSON.parse(raw.replace(/```json|```/g,'').trim());
  if(!response||typeof response!=='object'||Array.isArray(response))throw FoodRequest.invalid();
  const source=Array.isArray(response.actions)?response.actions:Array.isArray(response.items)?response.items.map(item=>({...item,op:'add'})):null;
@@ -451,6 +457,7 @@ function foodResponse(raw,day,allowedIds){
   const vagueFailure=/^(?:не удалось (?:посчитать|подсчитать|рассчитать|обработать запрос)(?:[.,!…\s]+попробуйте (?:ещ[её] раз|позже))?|попробуйте (?:ещ[её] раз|позже))[.!…\s]*$/i.test(reply);
   if(!reply||vagueFailure||/(записал|записан|добавил|добавлен|внес|внёс)/i.test(reply))throw FoodRequest.invalid();
  }
+ if(typeof Nutrition!=='undefined'&&query&&actions.length===1&&actions[0].op==='add'){const product=Nutrition.parse(query);if(product&&!Nutrition.compatible(product.n,actions[0].name))throw FoodRequest.invalid()}
  return {...response,actions};
 }
 function applyDish(o,day,mk,text,key,photoGrams=null,commit=true){const A=(Array.isArray(o.actions)?o.actions:(Array.isArray(o.items)?o.items.map(x=>({op:'add',name:x.name,grams:x.grams,kcal100:(+x.kcal||0)/(+x.grams||100)*100,protein100:(+x.protein||0)/(+x.grams||100)*100,fat100:(+x.fat||0)/(+x.grams||100)*100,carbs100:(+x.carbs||0)/(+x.grams||100)*100})):[])).map(normAct).filter(Boolean),ids=[],adds=A.filter(x=>x.op=='add').length;let ne=0,nd=0,na=0;
@@ -458,17 +465,36 @@ function applyDish(o,day,mk,text,key,photoGrams=null,commit=true){const A=(Array
   if(a.op=='add'){
    const requestedGrams=adds===1&&photoGrams?photoGrams:+a.grams||100;
    const g=Math.round(Math.min(3000,Math.max(1,requestedGrams))),n=String(a.name||text||'Блюдо').slice(0,60);
-   const known=(a.foodId&&DishCatalog.find(S,a.foodId))||DishCatalog.match(S,n);
+   let known=(a.foodId&&DishCatalog.find(S,a.foodId))||DishCatalog.match(S,n);
+   if(known&&typeof Nutrition!=='undefined'&&(!Nutrition.compatible(n,known.n)||Nutrition.parse(text)&&!Nutrition.compatible(Nutrition.parse(text).n,known.n)))known=null;
    const manual=known?.custom&&!known.hidden;
-   const k1=cl(manual?known.k:a.kcal100,950),p1_=cl(manual?known.p:a.protein100,100),f1_=cl(manual?known.f:a.fat100,100),c1=cl(manual?known.c:a.carbs100,100);
-   const entry={m:mk,n,g,k:R(k1*g/100),p:R(p1_*g/100),f:R(f1_*g/100),c:R(c1*g/100),...(known?{dishId:known.id}:{})};
+   const reference=typeof Nutrition!=='undefined'&&!CORR.test(text)?Nutrition.lookup(S,n+' 100 г'):null;
+   const values=manual?known:reference;
+   const k1=cl(values?values.k:a.kcal100,950),p1_=cl(values?values.p:a.protein100,100),f1_=cl(values?values.f:a.fat100,100),c1=cl(values?values.c:a.carbs100,100);
+   const entry={m:mk,n,g,k:R(k1*g/100),p:R(p1_*g/100),f:R(f1_*g/100),c:R(c1*g/100),per100:{k:k1,p:p1_,f:f1_,c:c1},nutritionOrigin:manual?'manual':'estimate',...(known?{dishId:known.id}:{})};
    ids.push(addEntry(entry,adds===1?text:'',day,commit));na++;
    if(key&&adds==1)S.dc[key]={n,g,k:k1,p:p1_,f:f1_,c:c1,dishId:entry.dishId};
   }
-  else if(a.op=='edit'){const e=items(day).find(x=>x.id==a.id);if(!e)continue;const g=a.grams!=null?Math.round(Math.min(3000,Math.max(1,+a.grams))):e.g;if(a.kcal100!=null||a.protein100!=null||a.fat100!=null||a.carbs100!=null){const pk=x=>x/e.g*100;e.k=R(cl(a.kcal100!=null?a.kcal100:pk(e.k),950)*g/100);e.p=R(cl(a.protein100!=null?a.protein100:pk(e.p),100)*g/100);e.f=R(cl(a.fat100!=null?a.fat100:pk(e.f),100)*g/100);e.c=R(cl(a.carbs100!=null?a.carbs100:pk(e.c),100)*g/100);e.g=g}else scaleEntry(e,g);if(a.name){if(DishCatalog.normalize(a.name)!==DishCatalog.normalize(e.n))delete e.dishId;e.n=String(a.name).slice(0,60)}DishCatalog.record(S,e);ids.push(e.id);ne++}
+  else if(a.op=='edit'){
+   const e=items(day).find(x=>x.id==a.id);if(!e)continue;
+   const g=a.grams!=null?Math.round(Math.min(3000,Math.max(1,+a.grams))):e.g;
+   const valuesChanged=['kcal100','protein100','fat100','carbs100'].some(k=>a[k]!=null);
+   const base=e.per100||{k:e.k/e.g*100,p:e.p/e.g*100,f:e.f/e.g*100,c:e.c/e.g*100};
+   if(a.name){if(DishCatalog.normalize(a.name)!==DishCatalog.normalize(e.n))delete e.dishId;e.n=String(a.name).slice(0,60)}
+   if(valuesChanged){
+    const manual=/на\s*100\s*(?:г|гр|грамм)/i.test(text)&&/(ккал|калори|белк|жир|углевод|кбжу)/i.test(text);
+    const saved=DishCatalog.find(S,e.dishId)||DishCatalog.match(S,e.n);
+    e.per100={k:cl(a.kcal100??base.k,950),p:cl(a.protein100??base.p,100),f:cl(a.fat100??base.f,100),c:cl(a.carbs100??base.c,100)};
+    if(saved?.custom&&!manual)e.per100={k:saved.k,p:saved.p,f:saved.f,c:saved.c};
+    if(typeof Nutrition!=='undefined')Nutrition.remember(S,{n:e.n,...e.per100},'',manual?'manual':'estimate');
+    if(manual&&saved)Object.assign(saved,e.per100,{custom:true});
+    e.nutritionOrigin=manual||saved?.custom?'manual':'estimate';
+   }
+   scaleEntry(e,g);DishCatalog.record(S,e);ids.push(e.id);ne++;
+  }
   else if(a.op=='delete'){const e=items(day).find(x=>x.id==a.id);if(!e)continue;S.log[day]=items(day).filter(x=>x.id!=a.id);nd++}}
  if(commit){save();render()}return{ids,lbl:ne&&!na?'Исправлено':'Добавлено',msg:nd&&!ids.length?'Запись удалена':'',reply:String(o.reply||'')}}
-function knownDishes(){DishCatalog.init(S);return S.foods.slice().sort((a,b)=>Number(b.pinned)-Number(a.pinned)).slice(0,100).map(dish=>({id:dish.id,n:dish.n,aliases:dish.aliases||[]}))}
+function knownDishes(query=''){DishCatalog.init(S);const words=new Set(DishCatalog.normalize(query).split(' ').filter(w=>w.length>2)),score=d=>[d.n,...d.aliases||[]].reduce((v,n)=>Math.max(v,DishCatalog.normalize(n).split(' ').filter(w=>words.has(w)).length),0);return S.foods.slice().sort((a,b)=>score(b)-score(a)||Number(b.pinned)-Number(a.pinned)).slice(0,20).map(dish=>({id:dish.id,n:dish.n,aliases:dish.aliases||[]}))}
 function foodRecords(day,mk,thread){const ids=new Set((S.hist[day+'|'+mk]||[]).filter(message=>message.thread===thread).flatMap(message=>message.ids||[]));return items(day).filter(entry=>entry.m===mk&&ids.has(entry.id))}
 function foodCtx(day,mk,thread){const L=thread?foodRecords(day,mk,thread):[],kn=S.foods.filter(dish=>!dish.hidden).slice(0,25).map(x=>`${x.n}: ${x.k} ккал, Б ${x.p}, Ж ${x.f}, У ${x.c} на 100 г`).join('; ');return `Дата: ${day}. Приём пищи: ${MEALS.find(x=>x[0]==mk)[1]}. Независимая задача. Записи только этой задачи (id: название, г, ккал): ${L.map(x=>`${x.id}: ${x.n}, ${x.g} г, ${x.k} ккал`).join('; ')||'нет'}. Не изменяй записи других задач.\nИзвестные блюда пользователя: ${kn||'нет'}.`}
 function foodHistory(day,mk,newPhoto,before=Infinity,thread){
@@ -514,7 +540,7 @@ function restoreFoodJobs(day,selectedMeal){
   const source=history.find(message=>message.r==='me'&&message.task===notice.task)||history.slice(0,index).findLast(message=>message.r==='me');
   if(!source)continue;
   const sourceIndex=history.indexOf(source),image=String(source.img||'').match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
-  const request={mode:image||source.photo?'photo':'dish',text:source.t||'',context:foodCtx(day,selectedMeal,notice.thread),portion:parsePortion(source.t||''),history:foodHistory(day,selectedMeal,!!image,sourceIndex,notice.thread),knownDishes:knownDishes()};
+  const request={mode:image||source.photo?'photo':'dish',text:source.t||'',context:foodCtx(day,selectedMeal,notice.thread),portion:parsePortion(source.t||''),history:foodHistory(day,selectedMeal,!!image,sourceIndex,notice.thread),knownDishes:knownDishes(source.t||'')};
   if(image){request.image=image[2];request.mimeType=image[1]}
   registerFoodJob(request,notice,day,selectedMeal,source.t||'',source);
  }
@@ -535,12 +561,12 @@ async function runFoodJob(job){
    if(previousError?.kind==='invalid_response'||previousError?.name==='SyntaxError')job.outputTokens=Math.min(6400,(job.outputTokens||1600)*2);
    const request=job.outputTokens?{...job.request,outputTokens:job.outputTokens}:job.request;
    return callAPI(request,{signal});
-  },raw=>foodResponse(raw,job.day,allowedIds),status=>{job.status=status;paintFoodJob(job)});
+  },raw=>foodResponse(raw,job.day,allowedIds,job.text),status=>{job.status=status;paintFoodJob(job)});
   // Apply the validated batch once, after every retry has finished.
-  const previous=JSON.parse(JSON.stringify({log:S.log,foods:S.foods,dc:S.dc}));
+  const previous=JSON.parse(JSON.stringify({log:S.log,foods:S.foods,dc:S.dc,...(typeof Nutrition!=='undefined'?{nutrition:S.nutrition||{version:1,rows:[],defaults:{}}}:{})}));
   let result;
   try{
-   const known=!response.actions.length&&job.cacheKey&&S.foods.find(food=>normKey(food.n)===job.cacheKey);
+   const known=typeof Nutrition==='undefined'&&!response.actions.length&&job.cacheKey&&S.foods.find(food=>normKey(food.n)===job.cacheKey);
    result=known
     ?fromCache({n:known.n,g:100,k:known.k,p:known.p,f:known.f,c:known.c},parsePortion(job.text),parseGrams(job.text),job.text,job.day,job.meal,false)
     :applyDish(response,job.day,job.meal,job.text,job.cacheKey,job.photoGrams,false);
@@ -552,7 +578,7 @@ async function runFoodJob(job){
   job.notice.lbl=result.lbl;
   job.notice.t=result.ids.length?result.reply:result.msg||result.reply;
   if(result.ids.length)for(const [id,previousJob] of foodJobs)if(id!==job.id&&!previousJob.busy&&previousJob.key===job.key&&previousJob.thread===job.thread){previousJob.notice.lbl='Уточнено';previousJob.notice.t='Расчёт продолжен в уточнении ниже.';foodJobs.delete(id)}
-  foodJobs.delete(job.id);save();refreshFoodView();
+  foodJobs.delete(job.id);save();if(typeof NutritionUI!=='undefined')NutritionUI.schedule();refreshFoodView();
   if($('#am')&&hk()===job.key)loadHist();
  }catch(error){
   job.notice.t=FoodRequest.message(error);save();
@@ -569,8 +595,13 @@ async function retryFood(id){
 async function sendFood(){
  if(VOICE)return toast('Сначала завершите голосовой ввод.');
  kbFlush();
- const input=$('#ai'),text=val(input),file=AF;
+ const input=$('#ai');let text=val(input);const file=AF;
  if((!text&&!file)||sendFood.b)return;
+ if(!file&&typeof Nutrition!=='undefined'){
+  const preparation=Nutrition.prepare(S,text);
+  if(preparation.choice&&NutritionUI.requestChoice(text,preparation.choice))return;
+  text=preparation.text;NutritionUI.cancel();
+ }
  const historyKey=hk(),day=cur(),selectedMeal=meal;
  const scope=FoodTasks.select(S.hist[historyKey]||[],text,!!file,foodReply?.key===historyKey?foodReply.thread:null);
  sendFood.b=scope.task;foodReply=null;drawFoodReply();
@@ -588,10 +619,12 @@ async function sendFood(){
   const fraction=parsePortion(text),grams=parseGrams(text),key=normKey(text),correction=CORR.test(text),last=foodRecords(day,selectedMeal,scope.thread).at(-1),threadBusy=[...foodJobs.values()].some(job=>job.busy&&job.key===historyKey&&job.thread===scope.thread);
   if(!threadBusy&&!photoConversation&&key===''&&last&&(fraction||grams||DEL.test(text))){
    result=localEdit(last,fraction,grams,text,day);
-  }else if(scope.thread===scope.task&&!photoConversation&&key&&S.dc[key]&&!correction){
+  }else if(scope.thread===scope.task&&!photoConversation&&!correction&&typeof Nutrition!=='undefined'&&Nutrition.lookup(S,text)){
+   const row=Nutrition.lookup(S,text);result=fromCache(row,fraction,row.g,text,day,selectedMeal);
+  }else if(typeof Nutrition==='undefined'&&scope.thread===scope.task&&!photoConversation&&key&&S.dc[key]&&!correction){
    result=fromCache(S.dc[key],fraction,grams,text,day,selectedMeal);
   }else if(hasAPI()){
-   const request={mode:file?'photo':'dish',text,context:foodCtx(day,selectedMeal,scope.thread),portion:fraction,history,knownDishes:knownDishes()};
+   const request={mode:file?'photo':'dish',text,context:foodCtx(day,selectedMeal,scope.thread),portion:fraction,history,knownDishes:knownDishes(text)};
    if(file){request.image=await shrink(file);foodPhotoImages.set(userMessage,request.image)}
    const id=scope.task;
    const notice={r:'ai',lbl:id,task:id,thread:scope.thread,t:'Исходное сообщение сохранено в переписке. Расчёт можно продолжить.'};
@@ -606,7 +639,7 @@ async function sendFood(){
    const weight=Math.max(1,Math.round(gramsPerPortion*(fraction||1)));
    result={ids:[addEntry({m:selectedMeal,n:food[0],g:weight,k:R(food[1]*weight/100),p:R(food[2]*weight/100),f:R(food[3]*weight/100),c:R(food[4]*weight/100)},text,day)],lbl:'Добавлено'};
   }else throw{code:'na'};
-  await sleep(Math.max(0,1200-(Date.now()-started)));stop();
+  stop();
   if(result.ids.length){
    pushH({r:'ai',ids:result.ids,lbl:result.lbl,task:scope.task,thread:scope.thread},historyKey);
    bubble.innerHTML=resHtml(result.ids,day,selectedMeal,result.lbl)+(result.reply?`<small class="ok" style="color:var(--ink)">${esc(result.reply)}</small>`:'');
@@ -621,7 +654,7 @@ async function sendFood(){
  }
 }
 function openAdd(m){const h=new Date().getHours();meal=m||(h<11?'b':h<16?'l':h<21?'d':'s');AF=null;foodReply=null;
- sheet(`<div class="ad"><div class="adh"><h2>Добавить еду</h2><label class="dchip">📅 <span id="dl">${dlab(cur())}</span><input type="date" value="${cur()}" max="${today()}" onchange="pickDay(this.value)" aria-label="Дата" tabindex="-1"></label><button class="x" aria-label="Закрыть" onclick="closeSheet()">×</button></div><div class="seg">${MEALS.map(([k,n])=>`<button data-m="${k}" class="${k==meal?'on':''}" onclick="setMeal('${k}')">${n}</button>`).join('')}</div><div class="am" id="am"></div><div id="dish-actions" class="dish-actions" hidden></div><div class="chips" id="fq"></div><div id="pv"></div><div id="food-reply" class="food-reply" hidden></div><div class="cmp"><div class="menu" id="mn" hidden><button onclick="$('#fc').click()">Сделать фото</button><button onclick="$('#fg').click()">Из галереи</button></div><label class="pl" aria-label="Добавить фото">${PLUS}<input id="fg" type="file" accept="image/*" onchange="attach(this.files[0])"></label><div id="ai" class="ce" contenteditable="${OWNKB()?'false':'plaintext-only'}" onclick="kbOpen(this,event)" role="textbox" aria-multiline="true" aria-label="Что вы съели" data-ph="Еда и вес…" oninput="gr(this)"></div>${voiceButton('ai')}<button class="sb" aria-label="Отправить" onpointerdown="event.preventDefault()" onclick="sendFood()" disabled>${UP}</button><input id="fc" type="file" accept="image/*" capture="environment" hidden onchange="attach(this.files[0])"><input id="ff" type="file" accept=".jpg,.jpeg,.png,.webp,.heic,.heif" hidden onchange="attach(this.files[0])"></div></div>`,false,true);loadHist();drawFq();setTimeout(loadHist,60)}
+ sheet(`<div class="ad"><div class="adh"><h2>Добавить еду</h2><label class="dchip">📅 <span id="dl">${dlab(cur())}</span><input type="date" value="${cur()}" max="${today()}" onchange="pickDay(this.value)" aria-label="Дата" tabindex="-1"></label><button class="x" aria-label="Закрыть" onclick="closeSheet()">×</button></div><div class="seg">${MEALS.map(([k,n])=>`<button data-m="${k}" class="${k==meal?'on':''}" onclick="setMeal('${k}')">${n}</button>`).join('')}</div><div class="am" id="am"></div><div id="dish-actions" class="dish-actions" hidden></div><div class="chips" id="fq"></div><div id="pv"></div><div id="nutrition-choice" class="nutrition-choice" hidden></div><div id="food-reply" class="food-reply" hidden></div><div class="cmp"><div class="menu" id="mn" hidden><button onclick="$('#fc').click()">Сделать фото</button><button onclick="$('#fg').click()">Из галереи</button></div><label class="pl" aria-label="Добавить фото">${PLUS}<input id="fg" type="file" accept="image/*" onchange="attach(this.files[0])"></label><div id="ai" class="ce" contenteditable="${OWNKB()?'false':'plaintext-only'}" onclick="kbOpen(this,event)" role="textbox" aria-multiline="true" aria-label="Что вы съели" data-ph="Еда и вес…" oninput="gr(this)"></div>${voiceButton('ai')}<button class="sb" aria-label="Отправить" onpointerdown="event.preventDefault()" onclick="sendFood()" disabled>${UP}</button><input id="fc" type="file" accept="image/*" capture="environment" hidden onchange="attach(this.files[0])"><input id="ff" type="file" accept=".jpg,.jpeg,.png,.webp,.heic,.heif" hidden onchange="attach(this.files[0])"></div></div>`,false,true);loadHist();drawFq();setTimeout(loadHist,60)}
 function allFoods(){return S.foods.filter(dish=>!dish.hidden).map(f=>[f.n,f.k,f.p,f.f,f.c,f.d]).concat(DB)}
 const hasAPI=()=>API.startsWith('http');
 async function callAPI(payload,options={}){
@@ -641,7 +674,15 @@ function bub(r,t,a){const b=document.createElement('div');b.className='bub '+(r=
 function toBot(s){scrollTo({top:document.body.scrollHeight,behavior:s?'smooth':'auto'})}
 function vCoach(){return `<div class="cw"><h1>ИИ-тренер</h1><p class="sub">Знает вашу норму и рацион за сегодня</p><div class="msgs" id="chat">${S.chat.length?S.chat.map(m=>`<div class="bub ${m.role=='user'?'me':'ai'}">${esc(m.content)}</div>`).join(''):'<div class="bub ai">Привет! Подскажу, что съесть, чтобы уложиться в норму, и разберу ваш день.</div>'}</div></div><div class="comp"><div class="chips">${CH.map((t,i)=>`<button onclick="ask(CH[${i}])">${t}</button>`).join('')}</div><div class="send"><div id="ci" class="ce" contenteditable="${OWNKB()?'false':'plaintext-only'}" onclick="kbOpen(this,event)" role="textbox" aria-multiline="true" aria-label="Вопрос тренеру" data-ph="Ваш вопрос…" oninput="gr(this)"></div>${voiceButton('ci')}<button class="sb" aria-label="Отправить" onpointerdown="event.preventDefault()" onclick="ask()" disabled><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div></div>`}
 function local(){const n=norm(S.profile),d=tot(today()),l=n.k-d.k,pl=n.p-d.p;return `Сегодня съедено ${d.k} из ${n.k} ккал. `+(l>0?`Осталось ${l} ккал`+(pl>10?` и ещё около ${R(pl)} г белка — подойдут творог, куриная грудка или яйца.`:'.'):`Норма превышена на ${-l} ккал — на ужин лучше лёгкий белковый вариант и овощи.`)+'\n\nЭто упрощённый совет без ИИ: полноценные ответы появятся после подключения вашего API.'}
-function saveFood(n,g,k,p,f,c,d,entry){return DishCatalog.record(S,entry||{n,g,k,p,f,c,m:meal},{foodId:entry?.dishId,alias:d||''})}
+function saveFood(n,g,k,p,f,c,d,entry){
+ const food=DishCatalog.record(S,entry||{n,g,k,p,f,c,m:meal},{foodId:entry?.dishId,alias:d||''});
+ if(typeof Nutrition!=='undefined'&&entry&&!entry.nutritionCached){
+  if(food?.custom){entry.per100={k:food.k,p:food.p,f:food.f,c:food.c};entry.nutritionOrigin='manual';for(const key of ['k','p','f','c'])entry[key]=R(entry.per100[key]*entry.g/100)}
+  const per100=entry.per100||{k:k/g*100,p:p/g*100,f:f/g*100,c:c/g*100};
+  Nutrition.remember(S,{n,...per100},d||'',entry.nutritionOrigin==='manual'?'manual':'estimate');if(typeof NutritionUI!=='undefined')NutritionUI.schedule();
+ }
+ return food;
+}
 let UNDO=null;
 function undo(){if(!UNDO)return;Object.assign(S,JSON.parse(UNDO));UNDO=null;save();document.querySelectorAll('.acts').forEach(e=>e.remove());toast('Изменения отменены')}
 function applyActions(L){const out=[];if(!Array.isArray(L)||!L.length)return out;UNDO=JSON.stringify(Object.fromEntries(Object.entries(S).filter(([k])=>k!='chat')));
@@ -716,7 +757,8 @@ function vSet(){const p=S.profile,n=norm(p),fk=['b','l','d','s'],W=S.rem.wc||{fr
  <section class="card"><h3>Веб-приложение</h3>${KaloriiTelegram.active?'<p class="em">Подключите прежнюю версию в браузере или с иконки на телефоне. После подключения она работает самостоятельно.</p><button class="ghost" onclick="PrivateAccess.showLink()">Подключить браузер</button><button class="ghost" onclick="PrivateAccess.revokeBrowsers()">Отключить все браузеры</button>':'<p class="em">Браузер подключён. Можно пользоваться приложением напрямую. Дневник хранится на этом устройстве.</p><button class="ghost" onclick="PrivateAccess.disconnect()">Отключить этот браузер</button>'}</section>
  <section class="card" ${KaloriiTelegram.active?'hidden':''}><div class="mh"><h3>Встроенная клавиатура</h3><button class="sw ${OWNKB()?'on':''}" role="switch" aria-checked="${OWNKB()}" aria-label="Встроенная клавиатура" onclick="toggleKb()"></button></div><p class="em">Убирает панель со стрелками над клавиатурой iPhone. Выключите, чтобы вернуть системную клавиатуру.</p></section>
  <section class="card"><h3>Мои блюда</h3><p class="em">Порции, КБЖУ и приёмы пищи для сохранённых блюд.</p><button class="ghost" onclick="MyDishes.open()">Открыть мои блюда</button></section>
- <section class="card"><h3>Данные</h3><p class="em">Дневник хранится на этом устройстве. Автоматическая синхронизация с другими устройствами не подключена.</p>${transferButtons()}<button class="ghost" onclick="restoreDiary()">Вернуть данные до переноса</button><button class="ghost" onclick="if(confirm('Удалить весь дневник и профиль?')){S={profile:null,log:{},water:{},weights:[],custom:null,foods:[],hist:{},goal:null,meas:[],coachMode:'strict',wk:[],wkGoal:3,wkPlanMinutes:45,dc:{},rem:{on:{},t:{},fired:{}},chat:[]};save();render()}">Удалить все данные</button></section>`}
+ <section class="card"><h3>Расчёт продуктов</h3><p class="em">Для мяса и круп запоминается выбранный способ взвешивания. Явное уточнение в сообщении всегда важнее.</p><button class="ghost" onclick="NutritionUI.reset()">Сбросить выбор сырого и готового веса</button><p class="em">Справочник: <a href="https://fdc.nal.usda.gov/" target="_blank" rel="noopener">USDA FoodData Central</a> (CC0). Проверка обновлений раз в неделю. Данные упаковок: <a href="https://world.openfoodfacts.org/" target="_blank" rel="noopener">Open Food Facts</a>, <a href="https://opendatacommons.org/licenses/odbl/1-0/" target="_blank" rel="noopener">ODbL</a>. Для неизвестных продуктов и домашних блюд используются приблизительные оценки ИИ. Ручные КБЖУ имеют приоритет.</p></section>
+ <section class="card"><h3>Данные</h3><p class="em">Дневник хранится на этом устройстве. Автоматическая синхронизация с другими устройствами не подключена.</p>${transferButtons()}<button class="ghost" onclick="restoreDiary()">Вернуть данные до переноса</button><button class="ghost" onclick="if(confirm('Удалить весь дневник и профиль?')){NutritionUI.clear();S={profile:null,log:{},water:{},weights:[],custom:null,foods:[],hist:{},goal:null,meas:[],coachMode:'strict',wk:[],wkGoal:3,wkPlanMinutes:45,dc:{},rem:{on:{},t:{},fired:{}},chat:[]};save();render()}">Удалить все данные</button></section>`}
 function wc(k,v){S.rem.wc=S.rem.wc||{from:'09:00',to:'21:00',ev:2};S.rem.wc[k]=v;save()}
 async function setGroup(ks){const on=!ks.some(k=>S.rem.on[k]);if(on&&!KaloriiTelegram.active&&'Notification' in window&&Notification.permission=='default'){try{await Notification.requestPermission()}catch(e){}}ks.forEach(k=>S.rem.on[k]=on);save();render()}
 function openMacros(){const n=norm(S.profile),f=(i,l,v)=>`<label>${l}<input id="g_${i}" type="number" inputmode="numeric" value="${v}" oninput="mk()"></label>`;

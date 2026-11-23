@@ -4,6 +4,8 @@ import {issueBrowserAccess,verifyBrowserAccess,revokeBrowsers} from './browser-a
 import {foodRequest} from './food.js';
 import {aiFailure,coachText,foodText} from './ai-errors.js';
 import {generateContent} from './gemini.js';
+import {withReserve} from './groq.js';
+import {nutritionSync,refreshNutrition} from './nutrition-store.js';
 const WORKOUT_RULES='Если для разных видов тренировки названа отдельная длительность, создай отдельные add_workout. Например, силовая 1,5 часа и кардио 10 минут — две записи: strength на 90 минут и cardio на 10 минут с одной датой. Не объединяй их в запись на 100 минут. Для слова «в среду» без иной даты выбери последнюю наступившую среду относительно «Сегодня» из контекста. День на открытом экране не заменяет сегодняшнюю дату. Каждая записываемая тренировка должна содержать kinds, minutes и date; ответ об успешной записи сопровождай действиями.';
 const MOTIVATION='Мотивация: используй фактические замеры, полноту дневника и расчёт следующего шага из контекста. Достижение цели по замерам и выполнение плана — разные показатели. Не выдумывай процент изменений тела, который якобы уже был бы достигнут при идеальном соблюдении плана, точную дату цели или будущую внешность по фотографии. Гипотетическое сравнение допускается для выполнения плана на сегодня при неизменных остальных записях; явно называй этот показатель и условие. Отсутствие записей не доказывает нарушение; один откат замера не объясняет его причину. Поддержи реальное усилие и предложи один посильный шаг в рамках выбранного плана. Не назначай голодание или дополнительные тренировки для компенсации. Не выдумывай реальные истории успеха, имена, цитаты или ссылки: без проверенного источника используй только явно условный пример.';
 // Прокси между приложением «Калории» и Gemini API. Ключ хранится в секрете GEMINI_KEY.
@@ -49,6 +51,12 @@ export default{async fetch(req,env){
  const access=management||b.telegramInitData||!b.browserToken?await verifyTelegramAccess(b.telegramInitData,env):await verifyBrowserAccess(b.browserToken,env);
  if(!access.ok)return j({error:access.error},access.status);
  if(b.mode=='access')return j({allowed:true});
+ if(b.mode==='nutrition'){
+  const key=access.userId+'|nutrition',now=Date.now(),recent=(hits.get(key)||[]).filter(t=>now-t<60000);
+  if(recent.length>=12)return j({error:'rate',retryable:true,retryAfter:60},429);
+  recent.push(now);hits.set(key,recent);
+  try{return j({text:JSON.stringify({rows:await nutritionSync(env,access.userId,b.rows,b.clear===true)})})}catch(error){return j({error:error.status===400?'bad_nutrition':'nutrition_unavailable'},error.status||503)}
+ }
  if(b.mode=='browser_logout'){
   if(!access.browserKey)return j({error:'bad'},400);
   try{await env.SUBS.delete(access.browserKey);return j({ok:true})}catch{return j({error:'browser_unavailable'},503)}
@@ -88,7 +96,7 @@ export default{async fetch(req,env){
  if(b.requestId!==undefined&&(typeof b.requestId!=='string'||!/^[a-zA-Z0-9_.-]{1,100}$/.test(b.requestId)))return j({error:'bad_request_id',retryable:false},400);
  const taskScope=b.requestId?await hid(access.userId+'|'+b.requestId):'';
  let r;
- try{r=await generateContent(env,body,b.mode,taskScope)}
+ try{r=await withReserve(env,body,b.mode,signal=>generateContent(env,body,b.mode,taskScope,signal))}
  catch(e){return j({error:'unavailable',retryable:true,retryAfter:10},503)}
  if(!r.ok){
   const failure=await aiFailure(r.clone());
@@ -105,4 +113,4 @@ export default{async fetch(req,env){
   try{return j({text:foodText(d)})}catch(error){return j({error:error.message,retryable:error.retryable},502)}
  }
  try{return j({text:coachText(d)})}catch(error){return j({error:error.message,retryable:error.retryable},502)}
-},async scheduled(e,env,ctx){ctx.waitUntil(tick(env))}}
+},async scheduled(e,env,ctx){ctx.waitUntil(tick(env));if(new Date(e.scheduledTime).getUTCMinutes()===17)ctx.waitUntil(refreshNutrition(env))}}

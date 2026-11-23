@@ -96,7 +96,7 @@ async function saveCooldown(storage, sharedKey, modeKey, response, failure, star
   return state;
 }
 
-export async function generateContent(env, body, mode, requestId='') {
+export async function generateContent(env, body, mode, requestId='',signal) {
   const models = [...new Set([env.MODEL || 'gemini-3.5-flash-lite', ...String(env.MODEL_FALLBACKS || '').split(',')].map(model=>model.trim()).filter(Boolean))];
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(env.GEMINI_KEY || ''));
   const scope = [...new Uint8Array(digest)].slice(0,12).map(byte=>byte.toString(16).padStart(2,'0')).join('');
@@ -107,6 +107,7 @@ export async function generateContent(env, body, mode, requestId='') {
   const deadline = Date.now()+(mode==='transcribe'?36000:24000);
 
   for (const [index,model] of models.entries()) {
+    if(signal?.aborted)throw new DOMException('Cancelled','AbortError');
     const sharedKey = 'gemini:cooldown:v1:'+scope+':'+model;
     const modeKey = task?'gemini:cooldown:v3:'+scope+':'+model+':'+group+':'+task:'gemini:cooldown:v2:'+scope+':'+model+':'+group;
     const [shared,local]=await Promise.all([cooldownState(env.SUBS,sharedKey,true),cooldownState(env.SUBS,modeKey,false)]);
@@ -117,6 +118,8 @@ export async function generateContent(env, body, mode, requestId='') {
       const startedAt = Date.now();
       let upstreamFailure=false;
       const controller = new AbortController();
+      const cancel=()=>controller.abort();signal?.addEventListener('abort',cancel,{once:true});
+      if(signal?.aborted)cancel();
       // Leave time for every fallback inside the client's 45-second timeout.
       const timeout = Math.max(1,Math.min(modelTimeout,Math.floor((deadline-Date.now())/(models.length-index))));
       const timer = setTimeout(()=>controller.abort(),timeout);
@@ -135,7 +138,10 @@ export async function generateContent(env, body, mode, requestId='') {
           :Response.json({error:{code:'unavailable'}},{status:503});
       } finally {
         clearTimeout(timer);
+        signal?.removeEventListener('abort',cancel);
       }
+      // A reserve winner is not a Google outage and must not open a cooldown.
+      if(signal?.aborted)throw new DOMException('Cancelled','AbortError');
       if (response.ok) {
         try {
           const data=await response.clone().json();

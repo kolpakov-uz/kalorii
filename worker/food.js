@@ -66,7 +66,7 @@ export function foodRequest(input) {
   parts.push({text:(context ? 'КОНТЕКСТ:\n'+context+'\n\n' : '')+identities+'ТЕКУЩЕЕ СООБЩЕНИЕ: '+String(input.text || (hasPhoto ? 'Посчитай еду на фото.' : '')).slice(0,1000)+fraction});
   contents.push({role:'user',parts});
   return {
-    systemInstruction:{parts:[{text:FOOD+(hasPhoto ? '\n'+PHOTO : '')}]},
+    systemInstruction:{parts:[{text:FOOD+'\nВ name обязательно сохрани явно названные марку, жирность и способ приготовления. Сырой/сухой вес означает продукт до приготовления; варёный/жареный/запечённый — после. Не подставляй другой бренд, жирность или способ. В reply называй расчёт приблизительным, если нет проверенной этикетки или источника.'+(hasPhoto ? '\n'+PHOTO : '')}]},
     contents,
     generationConfig:{responseMimeType:'application/json',maxOutputTokens:[3200,6400].includes(input.outputTokens)?input.outputTokens:1600,temperature:0}
   };

@@ -77,6 +77,7 @@ const DishCatalog=(()=>{
   }
 
   function macroValues(entry){
+    if(entry.per100&&['k','p','f','c'].every(k=>finite(entry.per100[k])))return {...entry.per100};
     return {
       k:Math.round(Number(entry.k)/Number(entry.g)*100),
       p:Math.round(Number(entry.p)/Number(entry.g)*1000)/10,
