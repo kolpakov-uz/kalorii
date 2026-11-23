@@ -40,6 +40,46 @@ function backend(t, respond) {
   return calls;
 }
 
+test('malformed replies are isolated by task while the same task keeps its retry cooldown',async t=>{
+  const x=fixture();let fail=true;
+  const calls=backend(t,({model})=>model===primary&&fail?answer('{}'):success());
+  assert.equal((await generateContent(x.env,body,'dish','request-first')).status,200);
+  fail=false;
+  assert.equal((await generateContent(x.env,body,'dish','request-second')).status,200);
+  assert.equal((await generateContent(x.env,body,'dish','request-first')).status,200);
+  assert.deepEqual(calls.map(call=>call.model),[primary,secondary,primary,secondary]);
+  assert.ok(x.writes[0].key.startsWith('gemini:cooldown:v3:'));
+  assert.ok(x.writes[0].key.endsWith(':food:request-first'));
+});
+
+test('independent task identifiers cannot bypass project quotas, rate limits or actual model overload',async t=>{
+  for(const failure of [quota,()=>Response.json({}, {status:429,headers:{'Retry-After':'10'}}),()=>Response.json({}, {status:503})]){
+    const x=fixture();const calls=backend(t,({model})=>model===primary?failure():success());
+    await generateContent(x.env,body,'dish','request-first');
+    await generateContent(x.env,body,'dish','request-second');
+    assert.deepEqual(calls.map(call=>call.model),[primary,secondary,secondary]);
+    assert.ok(x.writes[0].key.startsWith('gemini:cooldown:v1:'));
+    t.mock.restoreAll();
+  }
+});
+
+test('the authenticated API forwards task scope and rejects malformed task identifiers before generation',async t=>{
+  const x=fixture();let fail=true;
+  const calls=backend(t,({model})=>model===primary&&fail?answer('{}'):success());
+  const env={...telegramEnvFixture,...x.env,TELEGRAM_ALLOWED_IDS:'[4001,4002]'};
+  const send=(requestId,user=4001)=>worker.fetch(new Request('https://fixture.test',{method:'POST',headers:{Origin:'https://kolpakov-uz.github.io'},body:JSON.stringify(telegramPayload({mode:'dish',text:'Каша 200 г',requestId},user))}),env);
+  assert.equal((await send('request-first')).status,200);fail=false;
+  assert.equal((await send('request-second')).status,200);assert.equal((await send('request-first')).status,200);
+  assert.deepEqual(calls.map(call=>call.model),[primary,secondary,primary,secondary]);
+  for(const id of ['',{},'bad <id>','x'.repeat(101)]){
+    const response=await send(id,4002);assert.equal(response.status,400);assert.equal((await response.json()).error,'bad_request_id');
+  }
+  assert.equal(calls.length,4);
+  assert.equal((await send('request-first',4002)).status,200);
+  assert.equal(calls.at(-1).model,primary,'another account must not inherit a task-specific failure');
+  assert.equal(calls.length,5);
+});
+
 test('production configuration starts with Hydrogen and stops after the first successful model',async t=>{
   const config = JSON.parse(fs.readFileSync(new URL('../worker/wrangler.jsonc',import.meta.url),'utf8'));
   assert.equal(config.vars.MODEL,primary);

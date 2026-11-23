@@ -33,6 +33,7 @@ function setup(initial={}) {
     callAPI:async(request,options)=>{requests.push(JSON.parse(JSON.stringify(request)));const next=typeof response==='function'?await response(request,options,requests.length):response;if(next instanceof Error)throw next;return typeof next==='string'?next:JSON.stringify(next)}
   });
   vm.runInContext(fs.readFileSync(new URL('../food-request.js',import.meta.url),'utf8'),context);
+  vm.runInContext(fs.readFileSync(new URL('../food-tasks.js',import.meta.url),'utf8'),context);
   vm.runInContext(fs.readFileSync(new URL('../dish-catalog.js',import.meta.url),'utf8'),context);
   vm.runInContext(html.slice(html.indexOf('function saveFood('),html.indexOf('\nlet UNDO=',html.indexOf('function saveFood('))),context);
   context.testBubble=()=>{let markup='';const bubble={textContent:'',get innerHTML(){return markup},set innerHTML(value){markup=value;progress.push(value)}};bubbles.push(bubble);return bubble};
@@ -47,6 +48,99 @@ function setup(initial={}) {
   };
 }
 const pictures=body=>body.contents.flatMap(turn=>turn.parts.filter(part=>part.inlineData).map(part=>part.inlineData));
+async function until(predicate){for(let i=0;i<40&&!predicate();i++)await Promise.resolve();assert.ok(predicate(),'expected asynchronous task state')}
+
+test('independent meals calculate concurrently, retain separate context and save out-of-order answers to their own messages',async()=>{
+ const x=setup(),pending=new Map();
+ x.reply(request=>new Promise(resolve=>pending.set(request.text,resolve)));
+ const first=x.send('Вафли 50 г',true);await until(()=>x.requests.length===1);
+ const second=x.send('Банан 100 г');await until(()=>x.requests.length===2);
+ const third=x.send('Рис 200 г');await until(()=>x.run('foodJobs.size')===3);
+ assert.equal(x.requests.length,2);assert.ok(x.progress.some(markup=>markup.includes('В очереди')));
+ assert.deepEqual(x.requests.map(request=>request.history),[[],[]]);assert.equal(x.requests[1].mode,'dish');
+ assert.notEqual(x.requests[0].requestId,x.requests[1].requestId);
+ const make=(name,grams)=>({reply:'Добавлено',actions:[{...estimate.actions[0],name,grams}]});
+ pending.get('Банан 100 г')(make('Банан',100));await second;await until(()=>x.requests.length===3);
+ pending.get('Рис 200 г')(make('Рис',200));await third;
+ pending.get('Вафли 50 г')(make('Вафли',50));await first;
+ assert.deepEqual(x.entries().map(entry=>entry.n),['Банан','Рис','Вафли']);
+ for(const request of x.requests){
+  const history=x.state.hist[date+'|b'],source=history.find(message=>message.task===request.requestId&&message.r==='me'),notice=history.find(message=>message.task===request.requestId&&message.r==='ai');
+  assert.ok(source&&notice);assert.equal(source.thread,notice.thread);assert.equal(notice.ids.length,1);
+ }
+ assert.deepEqual(x.requests[2].history,[]);assert.doesNotMatch(x.requests[2].context,/Вафли, 50 г|Банан, 100 г/);
+});
+
+test('an unrelated new dish after a photo receives neither the photo nor the previous entry ID',async()=>{
+ const x=setup();await x.send('Вафли 50 г',true);const old=x.entries()[0];
+ x.reply({reply:'Добавлено',actions:[{...estimate.actions[0],name:'Рис',grams:200}]});await x.send('Рис 200 г');
+ const next=x.requests[1];assert.deepEqual(next.history,[]);assert.equal(pictures(foodRequest(next)).length,0);assert.ok(!next.context.includes(old.id));assert.equal(x.entries().length,2);
+});
+
+test('an explicit clarification targets an older dish without including the newer dish or its photo',async()=>{
+ const x=setup();await x.send('Вафли 50 г',true);const first=x.entries()[0],thread=x.state.hist[date+'|b'][0].thread;
+ x.reply({reply:'Добавлено',actions:[{...estimate.actions[0],name:'Рис',grams:200}]});await x.send('Рис 200 г');const second=x.entries()[1];
+ x.run(`replyFood('${thread}')`);
+ x.reply({reply:'Исправлено',actions:[{op:'edit',id:first.id,grams:75}]});await x.send('исправь вес на 75 г');
+ const request=x.requests.at(-1);assert.ok(request.context.includes(first.id));assert.ok(!request.context.includes(second.id));assert.equal(request.history.filter(message=>message.image).length,1);assert.ok(request.history.every(message=>!message.text.includes('Рис')));
+ assert.equal(x.entries().length,2);assert.equal(first.g,75);assert.equal(second.g,200);
+});
+
+test('a clarification waits for its pending parent and sees the saved entry before it edits',async()=>{
+ const x=setup();let complete;
+ x.reply(()=>new Promise(resolve=>complete=resolve));const first=x.send('Вафли 50 г',true);await until(()=>x.requests.length===1);
+ const next=x.send('исправь вес на 75 г');await until(()=>x.run('foodJobs.size')===2);assert.equal(x.requests.length,1);
+ x.reply(()=>({reply:'Исправлено',actions:[{op:'edit',id:x.entries()[0].id,grams:75}]}));complete(estimate);
+ await first;await next;assert.equal(x.requests.length,2);assert.equal(x.entries().length,1);assert.equal(x.entries()[0].g,75);assert.ok(x.requests[1].history.some(message=>message.role==='model'&&message.text.includes(x.entries()[0].id)));
+});
+
+test('a new task cannot edit an unrelated diary entry even if a malformed model reply tries to target it',async()=>{
+ const x=setup();await x.send('Вафли 50 г',true);const original={...x.entries()[0]};
+ x.reply({reply:'Исправлено',actions:[{op:'edit',id:original.id,grams:999}]});await x.send('Рис 200 г');
+ assert.equal(x.entries().length,1);assert.deepEqual({...x.entries()[0]},original);assert.match(x.state.hist[date+'|b'].at(-1).lbl,/^request-/);
+});
+
+test('resuming after reload pairs each failed request with its own source instead of the nearest later user message',async()=>{
+ const x=setup();x.reply(()=>{throw Object.assign(Error('unavailable'),{kind:'unavailable',retryable:true})});
+ await x.send('Вафли 50 г',true);await x.send('Рис 200 г');
+ vm.runInContext(fs.readFileSync(new URL('../diary-backup.js',import.meta.url),'utf8'),x.context);
+ const state=x.run('DiaryBackup.parse(DiaryBackup.stringify(S))'),y=setup(JSON.parse(JSON.stringify(state)));y.run('loadHist()');
+ const notices=y.state.hist[date+'|b'].filter(message=>message.r==='ai');
+ y.reply(request=>({reply:'Добавлено',actions:[{...estimate.actions[0],name:request.text.startsWith('Рис')?'Рис':'Вафли',grams:request.text.startsWith('Рис')?200:50}]}));
+ await y.run(`retryFood('${notices[1].lbl}')`);await y.run(`retryFood('${notices[0].lbl}')`);
+ assert.deepEqual(y.requests.map(request=>request.text),['Рис 200 г','Вафли 50 г']);assert.equal(y.requests[1].image,thumbnail);assert.equal(y.requests[0].image,undefined);assert.equal(y.entries().length,2);
+});
+
+test('a successful clarification retires the failed parent retry so it cannot later add the meal twice',async()=>{
+ const x=setup();x.reply(()=>{throw Object.assign(Error('unavailable'),{kind:'unavailable',retryable:true})});await x.send('Вафли 50 г',true);
+ const parent=x.state.hist[date+'|b'][1],id=parent.lbl;x.reply(estimate);await x.send('попробуй ещё раз');
+ assert.equal(x.entries().length,1);assert.equal(x.run(`foodJobs.has('${id}')`),false);assert.equal(parent.lbl,'Уточнено');
+ const count=x.requests.length;await x.run(`retryFood('${id}')`);assert.equal(x.requests.length,count);assert.equal(x.entries().length,1);
+});
+
+test('rolling back one failed batch preserves an independent meal that finished while it was waiting',async()=>{
+ const x=setup();let finish;
+ x.reply(request=>request.text==='Две порции'?new Promise(resolve=>finish=resolve):{reply:'Добавлено',actions:[{...estimate.actions[0],name:'Банан',grams:100}]});
+ const pending=x.send('Две порции');await until(()=>x.requests.length===1);await x.send('Банан 100 г');
+ const saved={...x.entries()[0]},saveFood=x.context.saveFood;
+ x.context.saveFood=(...args)=>{if(args[0]==='Ошибка порции')throw Error('fixture');return saveFood(...args)};
+ finish({reply:'Добавлено',actions:[{...estimate.actions[0],name:'Первая порция'},{...estimate.actions[0],name:'Ошибка порции'}]});await pending;
+ assert.equal(x.entries().length,1);assert.deepEqual({...x.entries()[0]},saved);
+ const notices=x.state.hist[date+'|b'].filter(message=>message.r==='ai');assert.match(notices[0].t,/запись не сохранилась/);assert.deepEqual([...notices[1].ids],[saved.id]);
+});
+
+test('a completed background calculation does not interrupt a new voice recording',async()=>{
+ const x=setup();let finish;
+ x.reply(()=>new Promise(resolve=>finish=resolve));const pending=x.send('Вафли 50 г');await until(()=>x.requests.length===1);
+ x.run('VOICE={phase:"recording"}');x.context.render=()=>{throw Error('render would cancel the microphone')};
+ finish(estimate);await pending;assert.equal(x.entries().length,1);assert.equal(x.run('VOICE.phase'),'recording');
+});
+
+test('a background food response does not replace an open coach conversation or its draft',async()=>{
+ const x=setup();x.context.V='coach';x.context.render=()=>{throw Error('coach DOM must remain intact')};
+ await x.send('Вафли 50 г');assert.equal(x.entries().length,1);
+ assert.equal(x.state.hist[date+'|b'].at(-1).ids.length,1);
+});
 
 test('AI identities count ten differently worded diary entries as one frequent dish across meals',async()=>{
  const x=setup(),names=['Овсянка на молоке','Молочная овсяная каша','Овсяная каша, молочная'];

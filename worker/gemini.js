@@ -96,18 +96,19 @@ async function saveCooldown(storage, sharedKey, modeKey, response, failure, star
   return state;
 }
 
-export async function generateContent(env, body, mode) {
+export async function generateContent(env, body, mode, requestId='') {
   const models = [...new Set([env.MODEL || 'gemini-3.5-flash-lite', ...String(env.MODEL_FALLBACKS || '').split(',')].map(model=>model.trim()).filter(Boolean))];
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(env.GEMINI_KEY || ''));
   const scope = [...new Uint8Array(digest)].slice(0,12).map(byte=>byte.toString(16).padStart(2,'0')).join('');
   const failures = [];
   const group=mode==='dish'||mode==='photo'?'food':mode==='transcribe'?'transcribe':'chat';
+  const task=typeof requestId==='string'&&/^[a-zA-Z0-9_.-]{1,100}$/.test(requestId)?requestId:'';
   const modelTimeout=mode==='transcribe'?12000:8000;
   const deadline = Date.now()+(mode==='transcribe'?36000:24000);
 
   for (const [index,model] of models.entries()) {
     const sharedKey = 'gemini:cooldown:v1:'+scope+':'+model;
-    const modeKey = 'gemini:cooldown:v2:'+scope+':'+model+':'+group;
+    const modeKey = task?'gemini:cooldown:v3:'+scope+':'+model+':'+group+':'+task:'gemini:cooldown:v2:'+scope+':'+model+':'+group;
     const [shared,local]=await Promise.all([cooldownState(env.SUBS,sharedKey,true),cooldownState(env.SUBS,modeKey,false)]);
     // If both gates are active, the model is usable only after the longer one.
     const cached=shared?.day?shared:shared&&local?(shared.until>=local.until?shared:local):shared||local;

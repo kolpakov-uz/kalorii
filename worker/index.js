@@ -85,8 +85,10 @@ export default{async fetch(req,env){
   if(!m.length||m.at(-1).role!='user')return j({error:'bad'},400);
   body={systemInstruction:{parts:[{text:SYS+'\n'+MOTIVATION+'\n'+WORKOUT_RULES+'\n\n'+String(b.context||'').slice(0,6000)}]},contents:m,generationConfig:{responseMimeType:'application/json',maxOutputTokens:900,temperature:.5}};
  }else return j({error:'bad'},400);
+ if(b.requestId!==undefined&&(typeof b.requestId!=='string'||!/^[a-zA-Z0-9_.-]{1,100}$/.test(b.requestId)))return j({error:'bad_request_id',retryable:false},400);
+ const taskScope=b.requestId?await hid(access.userId+'|'+b.requestId):'';
  let r;
- try{r=await generateContent(env,body,b.mode)}
+ try{r=await generateContent(env,body,b.mode,taskScope)}
  catch(e){return j({error:'unavailable',retryable:true,retryAfter:10},503)}
  if(!r.ok){
   const failure=await aiFailure(r.clone());

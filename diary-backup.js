@@ -18,7 +18,7 @@ const DiaryBackup=(()=>{
  const profile=required(shape({sex:choice('m','f'),a:num,h:num,w:num,act:num,goal:choice('lose','gain','abs','keep')}),['sex','a','h','w','act','goal']);
  const goal=required(shape({type:choice('abs','lose','arm','fat'),m:choice('waist','weight','arm','bf'),start:num,target:num,startDate:date}),['type','m','start','target','startDate']);
  const cache=required(shape({n:text,g:num,dishId:id,...macros}),['n','g','k','p','f','c']);
- const history=shape({r:choice('me','ai'),t:text,ids:array(id),lbl:text,img:pattern(/^(?:|data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+)$/)});
+ const history=shape({r:choice('me','ai'),t:text,ids:array(id),lbl:text,task:id,thread:id,photo:bool,img:pattern(/^(?:|data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+)$/)});
  function parse(raw){
   if(typeof raw!=='string'||raw.length>20*1024*1024)fail();
   const envelope=JSON.parse(raw,(key,value)=>['__proto__','constructor','prototype'].includes(key)?fail():value);
