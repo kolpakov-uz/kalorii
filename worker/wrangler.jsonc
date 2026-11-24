@@ -27,7 +27,8 @@
                       },
     "vars":  {
                  "MODEL":  "gemini-4-hydrogen",
-                 "MODEL_FALLBACKS": "gemini-3.8-flash,gemini-3.5-flash-lite"
+                 "MODEL_FALLBACKS": "gemini-3.8-flash,gemini-3.5-flash-lite",
+                 "GROQ_VISION_MODEL": "qwen/qwen3.8-27b"
              },
     "kv_namespaces":  [
                           {

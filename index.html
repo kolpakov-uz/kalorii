@@ -394,12 +394,12 @@ function msgHtml(m){
  if(m.r==='me')return `<div class="bub me">${m.img?`<img class="ph" alt="" src="${m.img}">`:''}${esc(m.t||'')}</div>`;
  const job=foodJobs.get(m.lbl);
  if(job)return `<div class="bub ai" id="${job.id}">${foodJobContent(job)}</div>`;
- const reply=FoodTasks.valid(m.thread)?`<button class="food-followup" onclick="replyFood('${m.thread}')">Уточнить</button>`:'';
+ const reply=FoodTasks.valid(m.thread)?`<button class="food-followup" title="Исправить вес или состав этого блюда" onclick="replyFood('${m.thread}')">Уточнить блюдо</button>`:'';
  if(m.ids?.length)return `<div class="bub ai">${resHtml(m.ids,cur(),meal,m.lbl)}${m.t?`<small class="ok" style="color:var(--ink)">${esc(m.t)}</small>`:''}${reply}</div>`;
  return `<div class="bub ai">${esc(m.t||'')}${reply}</div>`;
 }
 function loadHist(){FoodTasks.prepare(S.hist[hk()]||[]);restoreFoodJobs(cur(),meal);const c=$('#am'),H=(S.hist[hk()]||[]).filter(m=>m.r=='me'||m.t||(m.ids||[]).some(id=>items(cur()).some(x=>x.id==id))),L=items(cur()).filter(x=>x.m==meal),ref=new Set(H.flatMap(m=>m.ids||[])),un=L.filter(x=>!ref.has(x.id)),h=(un.length?[{r:'ai',ids:un.map(x=>x.id)}]:[]).concat(H);
- c.innerHTML=h.length?h.map(msgHtml).join(''):'<p class="hint">Напишите, что вы съели, или добавьте фото. Новые блюда считаются независимо; для исправления выберите «Уточнить».</p>';c.scrollTop=1e5;drawFoodReply()}
+ c.innerHTML=h.length?h.map(msgHtml).join(''):'<p class="hint">Напишите, что вы съели, или добавьте фото. Новые блюда считаются независимо; для исправления выберите «Уточнить блюдо».</p>';c.scrollTop=1e5;drawFoodReply()}
 function setMeal(m){foodReply=null;meal=m;document.querySelectorAll('.seg button').forEach(b=>b.classList.toggle('on',b.dataset.m==m));loadHist();drawFq()}
 function pickDay(v){if(!v)return;foodReply=null;setDay(v);const l=$('#dl');if(l)l.textContent=dlab(cur());loadHist();drawFq()}
 function replyFood(thread){if(!FoodTasks.valid(thread))return;foodReply={key:hk(),thread};drawFoodReply();$('#ai')?.focus()}
@@ -515,7 +515,7 @@ function foodHistory(day,mk,newPhoto,before=Infinity,thread){
 }
 function foodJobContent(job){
  const status=`<span class="food-progress" role="status" aria-live="polite" aria-busy="${job.busy}">${job.busy?'<span class="dots"><i></i><i></i><i></i></span>':''}<span>${esc(job.busy?job.status:job.notice.t)}</span></span>`;
- return status+(job.busy?'':`<button class="food-retry" onclick="retryFood('${job.id}')">Продолжить расчёт</button>`)+`<button class="food-followup" onclick="replyFood('${job.thread}')">Уточнить</button>`;
+ return status+(job.busy?'':`<button class="food-retry" onclick="retryFood('${job.id}')">Продолжить расчёт</button>`)+`<button class="food-followup" title="Исправить вес или состав этого блюда" onclick="replyFood('${job.thread}')">Уточнить блюдо</button>`;
 }
 function paintFoodJob(job){const bubble=document.getElementById(job.id);if(bubble)bubble.innerHTML=foodJobContent(job)}
 function refreshFoodView(){if(!VOICE&&(typeof V==='undefined'||V!=='coach'))render()}
