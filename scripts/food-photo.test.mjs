@@ -105,7 +105,7 @@ test('an explicit clarification targets an older dish without including the newe
  x.reply({reply:'Добавлено',actions:[{...estimate.actions[0],name:'Рис',grams:200}]});await x.send('Рис 200 г');const second=x.entries()[1];
  x.run(`replyFood('${thread}')`);
  x.reply({reply:'Исправлено',actions:[{op:'edit',id:first.id,grams:75}]});await x.send('исправь вес на 75 г');
- const request=x.requests.at(-1);assert.ok(request.context.includes(first.id));assert.ok(!request.context.includes(second.id));assert.equal(request.history.filter(message=>message.image).length,1);assert.ok(request.history.every(message=>!message.text.includes('Рис')));
+ const request=x.requests.at(-1);assert.ok(request.context.includes(first.id));assert.ok(!request.context.includes(second.id));assert.equal(request.history.filter(message=>message.image).length,0);assert.ok(request.history.every(message=>!message.text.includes('Рис')));
  assert.equal(x.entries().length,2);assert.equal(first.g,75);assert.equal(second.g,200);
 });
 
@@ -306,6 +306,20 @@ test('a re-estimate receives the stored entry ID and an edit changes that entry 
   await x.send('пересчитай по фото');
   assert.match(x.requests[1].history.find(message=>message.role==='model').text,new RegExp(id.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
   assert.equal(x.entries().length,1);assert.equal(x.entries()[0].id,id);assert.equal(x.entries()[0].k,220);
+});
+test('changing only weight after a successful photo is local, preserves its image and never adds a second portion',async()=>{
+ const x=setup();await x.send('Обед',true);const entry=x.entries()[0],id=entry.id;
+ await x.send('425 г');assert.equal(x.requests.length,1);assert.equal(x.entries().length,1);assert.equal(x.entries()[0].id,id);assert.equal(x.entries()[0].g,425);assert.equal(x.state.hist[date+'|b'][0].img,'data:image/jpeg;base64,'+thumbnail);
+});
+test('a total weight for a multi-product photo never changes only the last component locally',async()=>{
+ const x=setup();x.reply({actions:[{...estimate.actions[0],name:'Вафли',grams:30},{...estimate.actions[0],name:'Ягоды',grams:20}],reply:'Оценка по фото'});await x.send('Десерт',true);const [a,b]=x.entries();
+ x.reply({actions:[{op:'edit',id:a.id,grams:60},{op:'edit',id:b.id,grams:40}],reply:'Общий вес 100 г'});await x.send('100 г');assert.equal(x.requests.length,2);assert.equal(x.requests[1].history.some(m=>m.image),false);assert.equal(x.entries().reduce((sum,e)=>sum+e.g,0),100);
+});
+test('a composition correction reuses saved records as text; explicit photo re-estimation sends the image again',async()=>{
+ const x=setup();await x.send('Обед',true);const entry=x.entries()[0],thread=x.state.hist[date+'|b'][0].thread;
+ x.reply({actions:[{op:'edit',id:entry.id,kcal100:430,protein100:6,fat100:19,carbs100:59}],reply:'Уточнён состав'});
+ x.run(`replyFood('${thread}')`);await x.send('Убери сыр из состава');assert.equal(x.requests.length,2);assert.equal(x.requests[1].history.some(m=>m.image),false);assert.ok(x.requests[1].history.some(m=>m.text.includes(entry.id)));
+ await x.send('Пересчитай по фото');assert.equal(x.requests.length,3);assert.equal(x.requests[2].history.filter(m=>m.image).length,1);assert.equal(x.entries().length,1);
 });
 
 test('multiple foods split the total weight and a fraction is not replaced with the full weight',async()=>{

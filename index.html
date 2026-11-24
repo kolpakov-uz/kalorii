@@ -497,9 +497,14 @@ function applyDish(o,day,mk,text,key,photoGrams=null,commit=true){const A=(Array
 function knownDishes(query=''){DishCatalog.init(S);const words=new Set(DishCatalog.normalize(query).split(' ').filter(w=>w.length>2)),score=d=>[d.n,...d.aliases||[]].reduce((v,n)=>Math.max(v,DishCatalog.normalize(n).split(' ').filter(w=>words.has(w)).length),0);return S.foods.slice().sort((a,b)=>score(b)-score(a)||Number(b.pinned)-Number(a.pinned)).slice(0,20).map(dish=>({id:dish.id,n:dish.n,aliases:dish.aliases||[]}))}
 function foodRecords(day,mk,thread){const ids=new Set((S.hist[day+'|'+mk]||[]).filter(message=>message.thread===thread).flatMap(message=>message.ids||[]));return items(day).filter(entry=>entry.m===mk&&ids.has(entry.id))}
 function foodCtx(day,mk,thread){const L=thread?foodRecords(day,mk,thread):[],kn=S.foods.filter(dish=>!dish.hidden).slice(0,25).map(x=>`${x.n}: ${x.k} ккал, Б ${x.p}, Ж ${x.f}, У ${x.c} на 100 г`).join('; ');return `Дата: ${day}. Приём пищи: ${MEALS.find(x=>x[0]==mk)[1]}. Независимая задача. Записи только этой задачи (id: название, г, ккал): ${L.map(x=>`${x.id}: ${x.n}, ${x.g} г, ${x.k} ккал`).join('; ')||'нет'}. Не изменяй записи других задач.\nИзвестные блюда пользователя: ${kn||'нет'}.`}
-function foodHistory(day,mk,newPhoto,before=Infinity,thread){
+function foodHistory(day,mk,newPhoto,before=Infinity,thread,requestText=''){
  const history=(S.hist[day+'|'+mk]||[]).slice(0,before).filter(message=>(!thread||message.thread===thread)&&!String(message.lbl||'').startsWith('request-')).slice(-8);
- const photo=newPhoto?null:history.findLast(message=>message.r==='me'&&message.img);
+ // Once this task has a saved result, a weight/composition correction can use
+ // those values as text. Retain the image for failed recognition or an explicit
+ // request to inspect it again; it remains stored in the visible conversation.
+ const visual=/(фото|сним|изображ|распозна|посмотр|видишь|попробуй|пересчит|посчитай.*(?:ещ|сам))/i.test(requestText);
+ const needsPhoto=!thread||!foodRecords(day,mk,thread).length||visual;
+ const photo=newPhoto||!needsPhoto?null:history.findLast(message=>message.r==='me'&&message.img);
  return history.map(message=>{
   const role=message.r==='me'?'user':'model';
   const records=items(day).filter(entry=>(message.ids||[]).includes(entry.id));
@@ -540,7 +545,7 @@ function restoreFoodJobs(day,selectedMeal){
   const source=history.find(message=>message.r==='me'&&message.task===notice.task)||history.slice(0,index).findLast(message=>message.r==='me');
   if(!source)continue;
   const sourceIndex=history.indexOf(source),image=String(source.img||'').match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
-  const request={mode:image||source.photo?'photo':'dish',text:source.t||'',context:foodCtx(day,selectedMeal,notice.thread),portion:parsePortion(source.t||''),history:foodHistory(day,selectedMeal,!!image,sourceIndex,notice.thread),knownDishes:knownDishes(source.t||'')};
+  const request={mode:image||source.photo?'photo':'dish',text:source.t||'',context:foodCtx(day,selectedMeal,notice.thread),portion:parsePortion(source.t||''),history:foodHistory(day,selectedMeal,!!image,sourceIndex,notice.thread,source.t||''),knownDishes:knownDishes(source.t||'')};
   if(image){request.image=image[2];request.mimeType=image[1]}
   registerFoodJob(request,notice,day,selectedMeal,source.t||'',source);
  }
@@ -554,7 +559,7 @@ async function runFoodJob(job){
   if(job.prepare){const error=await(job.prepared||job.prepare());job.prepared=null;if(error)throw error}
   if(job.request.mode==='photo'&&!job.request.image)throw Object.assign(new Error('bad_image'),{kind:'bad_image',retryable:false});
   const sourceIndex=(S.hist[job.key]||[]).indexOf(job.source);
-  job.request.history=foodHistory(job.day,job.meal,job.request.mode==='photo',sourceIndex>=0?sourceIndex:Infinity,job.thread);
+  job.request.history=foodHistory(job.day,job.meal,job.request.mode==='photo',sourceIndex>=0?sourceIndex:Infinity,job.thread,job.text);
   job.request.context=foodCtx(job.day,job.meal,job.thread);
   const allowedIds=foodRecords(job.day,job.meal,job.thread).map(entry=>entry.id);
   const response=await FoodRequest.run((signal,attempt,previousError)=>{
@@ -605,7 +610,7 @@ async function sendFood(){
  const historyKey=hk(),day=cur(),selectedMeal=meal;
  const scope=FoodTasks.select(S.hist[historyKey]||[],text,!!file,foodReply?.key===historyKey?foodReply.thread:null);
  sendFood.b=scope.task;foodReply=null;drawFoodReply();
- const history=foodHistory(day,selectedMeal,!!file,Infinity,scope.thread);
+ const history=foodHistory(day,selectedMeal,!!file,Infinity,scope.thread,text);
  const photoConversation=!!file||history.some(message=>message.image);
  input.textContent='';kbSync(1);input.focus();AF=null;
  $('#pv').innerHTML='';input.dataset.ph='Еда и вес…';
@@ -616,8 +621,8 @@ async function sendFood(){
  const bubble=am('','ai'),stop=think(bubble),started=Date.now();
  try{
   let result;
-  const fraction=parsePortion(text),grams=parseGrams(text),key=normKey(text),correction=CORR.test(text),last=foodRecords(day,selectedMeal,scope.thread).at(-1),threadBusy=[...foodJobs.values()].some(job=>job.busy&&job.key===historyKey&&job.thread===scope.thread);
-  if(!threadBusy&&!photoConversation&&key===''&&last&&(fraction||grams||DEL.test(text))){
+  const fraction=parsePortion(text),grams=parseGrams(text),key=normKey(text),correction=CORR.test(text),threadRecords=foodRecords(day,selectedMeal,scope.thread),last=threadRecords.at(-1),threadBusy=[...foodJobs.values()].some(job=>job.busy&&job.key===historyKey&&job.thread===scope.thread);
+  if(!threadBusy&&!photoConversation&&key===''&&threadRecords.length===1&&last&&(fraction||grams||DEL.test(text))){
    result=localEdit(last,fraction,grams,text,day);
   }else if(scope.thread===scope.task&&!photoConversation&&!correction&&typeof Nutrition!=='undefined'&&Nutrition.lookup(S,text)){
    const row=Nutrition.lookup(S,text);result=fromCache(row,fraction,row.g,text,day,selectedMeal);
