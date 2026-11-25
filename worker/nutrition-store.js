@@ -51,7 +51,7 @@ export async function refreshNutrition(env){
   if(updates.length){
    // Re-read after external fetches: a correction made while refreshing wins.
    const current=await read(env,name,{version:1,rows:[]}),state={nutrition:current};
-   for(const update of updates){const saved=current.rows.find(r=>r.key===update.key);if(saved?.origin==='manual')continue;Nutrition.merge(state,[update]);const merged=current.rows.find(r=>r.key===update.key);if(merged)merged.sourceAttemptAt=update.sourceAttemptAt}
+   for(const update of updates){const id=Nutrition.key(update.n),saved=current.rows.find(r=>Nutrition.key(r.n)===id);if(saved?.origin==='manual')continue;Nutrition.merge(state,[update]);const merged=current.rows.find(r=>Nutrition.key(r.n)===id);if(merged)merged.sourceAttemptAt=update.sourceAttemptAt}
    await env.SUBS.put(name,JSON.stringify(current));
   }
   if(!remaining)break;

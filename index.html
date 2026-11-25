@@ -259,9 +259,9 @@ button{transition:transform .12s ease,filter .12s,background .2s,opacity .2s}
 <script src="goal-ui.js?v=motivation1"></script>
 <script src="food-request.js?v=retry3"></script>
 <script src="food-tasks.js?v=tasks1"></script>
-<script src="nutrition.js?v=nutrition1"></script>
+<script src="nutrition.js?v=foodrules2"></script>
 <script src="nutrition-seed.js?v=nutrition1"></script>
-<script src="nutrition-ui.js?v=nutrition1"></script>
+<script src="nutrition-ui.js?v=foodrules2"></script>
 <link rel="stylesheet" href="nutrition.css?v=nutrition1">
 <script src="dish-catalog.js?v=nutrition1"></script>
 <script src="my-dishes.js?v=nutrition1"></script>
@@ -415,11 +415,11 @@ function parsePortion(t){t=t.toLowerCase();let m=t.match(/(?:съел[аи]?|т�
  if(/три четверт/.test(t))return .75;if(/две трети/.test(t))return .67;if(/треть/.test(t))return .33;if(/четверт/.test(t))return .25;if(/(пол(ов)?ин|полпорц|полтарел)/.test(t))return .5;return null}
 function parseGrams(text,requireSingle=false){
  const normalized=text.toLowerCase();
- const matches=[...normalized.matchAll(/(\d+(?:[.,]\d+)?)\s*(кг|г|гр|грамм[а-я]*|g|мл)(?=\s|$|[,.;])/g)];
+ const matches=[...normalized.matchAll(/(\d+(?:[.,]\d+)?)\s*(кг|г|гр|грамм[а-я]*|g)(?=\s|$|[,.;])/g)];
  if(!matches.length||requireSingle&&matches.length!==1)return null;
  const match=matches[0];
  // Volume, per-item weights and several quantities need the model's interpretation.
- if(requireSingle&&(match[2]==='мл'||/\d/.test(normalized.replace(match[0],''))||/(?:кажд|на\s+штуку|(?:^|\s)по\s*\d)/.test(normalized)))return null;
+ if(requireSingle&&(/\d/.test(normalized.replace(match[0],''))||/(?:кажд|на\s+штуку|(?:^|\s)по\s*\d)/.test(normalized)))return null;
  let grams=parseFloat(match[1].replace(',','.'));
  if(match[2]==='кг')grams*=1000;
  return grams>0&&grams<=5000?Math.round(grams):null;
@@ -622,8 +622,8 @@ async function sendFood(){
  try{
   let result;
   const fraction=parsePortion(text),grams=parseGrams(text),key=normKey(text),correction=CORR.test(text),threadRecords=foodRecords(day,selectedMeal,scope.thread),last=threadRecords.at(-1),threadBusy=[...foodJobs.values()].some(job=>job.busy&&job.key===historyKey&&job.thread===scope.thread);
-  if(!threadBusy&&!photoConversation&&key===''&&threadRecords.length===1&&last&&(fraction||grams||DEL.test(text))){
-   result=localEdit(last,fraction,grams,text,day);
+  if(!threadBusy&&!photoConversation&&key===''&&threadRecords.length===1&&last&&(fraction||parseGrams(text,true)||DEL.test(text))){
+   result=localEdit(last,fraction,parseGrams(text,true),text,day);
   }else if(scope.thread===scope.task&&!photoConversation&&!correction&&typeof Nutrition!=='undefined'&&Nutrition.lookup(S,text)){
    const row=Nutrition.lookup(S,text);result=fromCache(row,fraction,row.g,text,day,selectedMeal);
   }else if(typeof Nutrition==='undefined'&&scope.thread===scope.task&&!photoConversation&&key&&S.dc[key]&&!correction){

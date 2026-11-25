@@ -11,12 +11,13 @@ const NutritionUI=(()=>{
  function requestChoice(text,query){
   const host=document.getElementById('nutrition-choice');if(!host)return false;
   const grain=query.family!=='chicken';
-  host.hidden=false;host.innerHTML=`<span>Вес до или после приготовления?</span><div>${(grain?[['raw','Сухой продукт'],['boiled','Готовая каша']]:[['raw','Сырое'],['boiled','Варёное'],['fried','Жареное'],['baked','Запечённое'],['braised','Тушёное']]).map(([id,label])=>`<button type="button" onclick="NutritionUI.choose('${id}')">${label}</button>`).join('')}<button type="button" onclick="NutritionUI.cancel()">Отмена</button></div><small>Запомню выбор для этого продукта. Явное уточнение в сообщении всегда важнее.</small>`;
+  host.hidden=false;host.innerHTML=`<span>Вес до или после приготовления?</span><div>${(grain?[['raw','Сухой продукт'],['boiled','Готовая каша']]:[['raw','Сырое'],['boiled','Варёное'],['fried','Жареное'],['baked','Запечённое'],['braised','Тушёное']]).map(([id,label])=>`<button type="button" onclick="NutritionUI.choose('${id}')">${label}</button>`).join('')}<button type="button" onclick="NutritionUI.back()">Вернуться к вводу</button></div><small>Запомню выбор для ${ {rice:'риса',buckwheat:'гречки',oats:'овсяных хлопьев',chicken:'куриного филе'}[query.family]||'этого продукта'}. Явное уточнение в сообщении всегда важнее.</small>`;
   host.dataset.text=text;return true;
  }
  function cancel(){const host=document.getElementById('nutrition-choice');if(host){host.hidden=true;host.innerHTML=''}}
+ function back(){cancel();const input=document.getElementById('ai');if(input){input.focus();kbSync(1);sbtn(input)}}
  function choose(method){const host=document.getElementById('nutrition-choice'),input=document.getElementById('ai');if(!host||!input)return;if(Nutrition.norm(input.textContent)!==Nutrition.norm(host.dataset.text)){cancel();sendFood();return}const text=Nutrition.choose(S,host.dataset.text,method);cancel();input.textContent=text;kbSync(1);save();sendFood()}
  function reset(){Nutrition.store(S).defaults={};save();toast('При следующем вводе мяса или крупы уточню, как указан вес.')}
  function manual(dish){Nutrition.remember(S,dish,'','manual');schedule()}
- return {start,schedule,requestChoice,choose,cancel,reset,manual,clear};
+ return {start,schedule,requestChoice,choose,cancel,back,reset,manual,clear};
 })();

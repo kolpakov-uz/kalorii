@@ -29,7 +29,7 @@ function setup(initial={},nutrition=false) {
     MEALS:[['b','Завтрак'],['l','Обед'],['d','Ужин'],['s','Перекус']],
     save(){snapshots.push(JSON.parse(JSON.stringify(state)))},render(){},saveFood(){},kbFlush(){},kbSync(){},toast(){},esc:value=>value,
     hasAPI:()=>true,allFoods:()=>[],AbortController,clearTimeout(){},setTimeout:(callback,delay)=>{if(delay!==45000)callback();return 1},
-    document:{getElementById:id=>bubbles.find(bubble=>bubble.id===id)||null},
+    document:{getElementById:id=>fields['#'+id]||bubbles.find(bubble=>bubble.id===id)||null},
     callAPI:async(request,options)=>{requests.push(JSON.parse(JSON.stringify(request)));const next=typeof response==='function'?await response(request,options,requests.length):response;if(next instanceof Error)throw next;return typeof next==='string'?next:JSON.stringify(next)}
   });
   vm.runInContext(fs.readFileSync(new URL('../food-request.js',import.meta.url),'utf8'),context);
@@ -43,12 +43,33 @@ function setup(initial={},nutrition=false) {
   run(`thumb=async()=>${JSON.stringify('data:image/jpeg;base64,'+thumbnail)};shrink=async()=>${JSON.stringify(fullImage)};am=testBubble;think=()=>()=>{}`);
   return {
     state,requests,run,context,snapshots,progress,
+    preparationUI(){fields['#nutrition-choice']={hidden:true,innerHTML:'',dataset:{}};context.PrivateAccess={allowed:false};vm.runInContext(fs.readFileSync(new URL('../nutrition-ui.js',import.meta.url),'utf8'),context);return fields['#nutrition-choice']},
     reply(value){response=value},
     async send(text,photo=false){fields['#ai'].textContent=text;context.file=photo?{name:'waffle.jpg'}:null;run('AF=file');await run('sendFood()')},
     entries:()=>state.log[date]||[]
   };
 }
 const pictures=body=>body.contents.flatMap(turn=>turn.parts.filter(part=>part.inlineData).map(part=>part.inlineData));
+test('Greek yogurt goes straight to calculation with the real preparation UI installed',async()=>{
+ const x=setup({},true),choice=x.preparationUI();x.reply({actions:[{op:'add',name:'Греческий йогурт',grams:50,kcal100:90,protein100:9,fat100:2,carbs100:4}],reply:'Примерная оценка'});await x.send('50 грамм греческого йогурта');assert.equal(x.requests.length,1);assert.equal(x.entries()[0].g,50);assert.equal(choice.hidden,true);assert.equal(choice.innerHTML,'');
+});
+test('return to input preserves the draft, diary and preparation preferences, including edited drafts',async()=>{
+ const original={id:'saved',n:'Творог 1%',g:50,k:43,p:9,f:1,c:1,m:'b'},x=setup({log:{[date]:[original]},nutrition:{version:1,rows:[],defaults:{}}},true),choice=x.preparationUI();
+ await x.send('Куриная грудка 200 г');assert.equal(x.requests.length,0);assert.equal(choice.hidden,false);assert.match(choice.innerHTML,/Вернуться к вводу/);
+ x.run("$('#ai').textContent='Куриная грудка 250 г';NutritionUI.back()");assert.equal(x.run("val($('#ai'))"),'Куриная грудка 250 г');assert.equal(choice.hidden,true);assert.deepEqual(x.entries(),[original]);assert.deepEqual(x.state.nutrition.defaults,{});assert.equal(x.requests.length,0);
+});
+test('portion percentage is passed separately from fat and a valid answer is accepted without retries',async()=>{
+ const x=setup({},true);x.reply({actions:[{op:'add',name:'Творог 1%',grams:100,kcal100:90,protein100:16,fat100:1,carbs100:3}],reply:'Оценка'});await x.send('Съел 50% от 200 г творога 1%');assert.equal(x.requests.length,1);assert.equal(x.requests[0].portion,.5);assert.equal(x.entries()[0].g,100);
+});
+test('a volume correction reaches AI with its unit instead of silently using millilitres as grams',async()=>{
+ const x=setup({},true);x.reply({actions:[{op:'add',name:'Оливковое масло',grams:100,kcal100:884,protein100:0,fat100:100,carbs100:0}],reply:'Оценка'});await x.send('Оливковое масло 100 г');const id=x.entries()[0].id;
+ x.reply({actions:[{op:'edit',id,grams:45}],reply:'50 мл — примерно 45 г масла'});await x.send('50 мл');assert.equal(x.requests.length,2);assert.equal(x.requests[1].text,'50 мл');assert.equal(x.entries().length,1);assert.equal(x.entries()[0].g,45);assert.equal(x.entries()[0].k,398);
+});
+test('wrong AI brand mapping cannot take another dairy product manual values',async()=>{
+ const original={id:'brand-a',n:'Йогурт Danone 2%',k:80,p:8,f:2,c:7,g:100,custom:true,hidden:false,aliases:['Йогурт Danone 2%'],meals:['b']},x=setup({foods:[original]},true);
+ x.reply({actions:[{op:'add',foodId:'brand-a',name:'Йогурт Danone 2%',grams:100,kcal100:110,protein100:8,fat100:2,carbs100:7}],reply:'Оценка'});await x.send('Йогурт Epica 2% 100 г');assert.equal(x.entries().length,0);assert.equal(original.k,80);
+ x.reply({actions:[{op:'add',name:'Йогурт Epica 2%',grams:100,kcal100:110,protein100:8,fat100:2,carbs100:7}],reply:'Оценка'});await x.send('Йогурт Epica 2% 100 г');assert.equal(x.entries().length,1);assert.equal(x.entries()[0].k,110);assert.notEqual(x.entries()[0].dishId,'brand-a');
+});
 test('an exact product uses the nutrition database without AI and keeps its original per-100 values',async()=>{
  const x=setup({},true);x.run("Nutrition.remember(S,{n:'Банан',k:97,p:.74,f:.29,c:23},'', 'estimate')");
  const checked=x.state.nutrition.rows[0].checkedAt;

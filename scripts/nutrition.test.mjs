@@ -8,6 +8,36 @@ import worker from '../worker/index.js';
 const create=()=>{const c=vm.createContext({Date});vm.runInContext(fs.readFileSync(new URL('../nutrition.js',import.meta.url),'utf8'),c);return c.Nutrition};
 const macros={k:100,p:15,f:1,c:4},row=n=>({n,...macros});
 const kv=()=>{const m=new Map();return {m,get:async k=>m.get(k)||null,put:async(k,v)=>{m.set(k,v)},delete:async k=>m.delete(k),list:async({prefix})=>({keys:[...m.keys()].filter(k=>k.startsWith(prefix)).map(name=>({name}))})}};
+test('ready products and meals never inherit raw-grain questions or saved preparation defaults',()=>{
+ const n=create(),s={};n.choose(s,'Рис 200 г','raw');n.choose(s,'Гречка 100 г','raw');n.choose(s,'Овсянка 100 г','raw');n.choose(s,'Куриная грудка 200 г','raw');
+ for(const name of ['греческого йогурта','греческого салата','рисовых хлебцев','рисовой муки','рисового пудинга','гречневого хлеба','гречишного мёда','овсяного печенья','овсяноблина','овсяного киселя','рисовой каши','гречневой каши','овсяной каши','куриной грудки на пару','готовой куриной грудки','готового риса']){const text='50 г '+name;assert.equal(n.prepare({},text).choice,undefined,text);assert.equal(n.prepare(s,text).text,text,text);assert.equal(n.choose(s,text,'raw'),text,text)}
+});
+test('only standalone grain and chicken names ask about weighing, independent of word order',()=>{
+ const n=create();for(const text of ['200 г риса','200 г белого риса','200 г бурого риса','200 г пропаренного риса','200 г крупы гречневой','200 г гречки','200 г грудки курицы','200 г овсяных хлопьев'])assert.ok(n.prepare({},text).choice,text);
+ for(const text of ['200 г куриной грудки сырой','200 г риса после приготовления','200 г риса до приготовления','200 г куриной грудки не жареной'])assert.equal(n.prepare({},text).choice,undefined,text);
+});
+test('food nouns, negated preparation and ingredients cannot masquerade as cooking methods',()=>{
+ const n=create();for(const text of ['Сыр','Сырники','Варенье','Вареники замороженные'])assert.equal(n.identity(text).prep,'',text);
+ assert.equal(n.identity('Куриная грудка с сыром варёная').prep,'boiled');assert.equal(n.identity('Куриная грудка не жареная').prep,'');assert.equal(n.identity('Куриная грудка нежареная').prep,'');
+ assert.equal(n.compatible('Куриная грудка не жареная','Куриная грудка жареная'),false);assert.equal(n.compatible('Куриная грудка не жареная','Куриная грудка варёная'),true);
+ assert.equal(n.compatible('Рис готовый','Рис варёный'),true);assert.equal(n.compatible('Рис готовый','Рис сырой'),false);
+ assert.notEqual(n.key('Варенье'),n.key('Вареники'));assert.equal(n.compatible('Варенье','Вареники'),false);
+});
+test('portion percentages are separate from fat and cannot poison the cached product identity',()=>{
+ const n=create();for(const text of ['Съел 50% от 200 г творога 1%','50 % от 200 г творога 1%','Я съела 25% от 100 г йогурта 2%']){const q=n.parse(text);assert.ok(q,text);assert.equal(q.fat,text.includes('йогурта')?'2%':'1%',text);assert.ok(!q.brand,text)}
+ assert.equal(n.compatible('Съел 50% от 200 г творога 1%','Творог 1%'),true);assert.equal(n.key('Творог 1 %'),n.key('Творог 1%'));
+});
+test('dairy brands stay separate, while normal flavour descriptions and milk in porridge are not brands',()=>{
+ const n=create();for(const [a,b] of [['Йогурт Danone 2%','Йогурт Epica 2%'],['Йогурт 2%','Йогурт Epica 2%'],['Йогурт Простоквашино 2%','Йогурт Савушкин 2%'],['Сыр Valio 17%','Сыр President 17%'],['Кефир Vlatika 1%','Кефир Epica 1%']])assert.equal(n.compatible(a,b),false,a);
+ assert.equal(n.compatible('Греческого йогурта','Греческий йогурт натуральный'),true);assert.equal(n.compatible('Йогурт клубничный 2%','Йогурт с клубникой 2%'),true);assert.equal(n.identity('Каша на молоке').brand,'');
+ for(const name of ['Йогуртовый торт','Творожная запеканка','Молочный коктейль','Сметанный соус'])assert.equal(n.identity(name).brand,'',name);
+});
+test('old cache keys are resolved by product name without merging jam with dumplings',()=>{
+ const n=create(),s={nutrition:{version:1,defaults:{},rows:[{...row('Варенье'),key:'boiled',origin:'manual',updatedAt:1,checkedAt:1,aliases:['Варенье','Вареники']}]}};
+ assert.equal(n.lookup(s,'Вареники 100 г'),null);n.remember(s,row('Варенье'),'','manual',2);assert.equal(s.nutrition.rows.length,1);assert.equal(s.nutrition.rows[0].key,n.key('Варенье'));
+ s.nutrition.rows[0].key='boiled';n.merge(s,[{...row('Варенье'),k:200,origin:'estimate',updatedAt:3,checkedAt:3}]);assert.equal(s.nutrition.rows[0].origin,'manual');assert.equal(s.nutrition.rows[0].k,100);
+ s.nutrition.rows[0].origin='estimate';n.merge(s,[{...row('Варенье'),k:200,origin:'estimate',updatedAt:1,checkedAt:1}]);assert.equal(s.nutrition.rows[0].k,100);
+});
 test('fat, brand, raw and cooked products remain distinct, including brandless tvorog',()=>{
  const n=create(),s={};for(const name of ['Творог 1%','Творог 5%','Творог Vlatika 1%','Творог Доброе деревенское утро 1%','Куриная грудка сырая','Куриная грудка варёная'])n.remember(s,row(name));
  assert.equal(s.nutrition.rows.length,6);
