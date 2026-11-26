@@ -34,27 +34,22 @@ test('an incoming diary update preserves selection in an existing message',async
  await page.evaluate(()=>{S.hist[hk()].push({r:'ai',t:'Дополнительный ответ'});loadHist()});
  expect(await page.evaluate(()=>getSelection().toString())).toBe(message);
 });
-test('a sent message has an accessible copy action preserving lines and emoji',async({page})=>{
- await open(page);await page.evaluate(()=>{window.copied=[];Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>window.copied.push(text)}})});
- await page.locator('#am .bub.me').getByRole('button',{name:'Скопировать сообщение',exact:true}).click();
- expect(await page.evaluate(()=>window.copied)).toEqual([message]);
- await page.screenshot({path:'.wrangler/text-'+test.info().project.name+'.png'});
+async function selectAndCopy(page,locator,start,end){
+ await locator.evaluate((el,{start,end})=>{const range=document.createRange();if(start==null)range.selectNodeContents(el);else{range.setStart(el.firstChild,start);range.setEnd(el.firstChild,end)}const selection=getSelection();selection.removeAllRanges();selection.addRange(range)},{start,end});
+ await page.keyboard.press('Control+c');
+}
+async function captureCopy(page){await page.evaluate(()=>{window.copied=[];document.addEventListener('copy',event=>{const text=getSelection().toString();window.copied.push(text);event.clipboardData.setData('text/plain',text);event.preventDefault()})})}
+test('sent text copies natively with lines and emoji without message buttons',async({page})=>{
+ await open(page);await captureCopy(page);await expect(page.locator('[data-copy-message],.msg-copy,.msg-tools')).toHaveCount(0);
+ await selectAndCopy(page,page.locator('#am .bub.me .message-text'));
+ await expect.poll(()=>page.evaluate(()=>window.copied)).toEqual([message]);
 });
-test('clipboard fallback copies only the message and preserves the draft selection',async({page})=>{
- await open(page);await page.locator('#ai').fill('Рис 200 г');
- await page.evaluate(()=>{
-  const field=document.querySelector('#ai'),range=document.createRange();range.setStart(field.firstChild,4);range.setEnd(field.firstChild,7);getSelection().removeAllRanges();getSelection().addRange(range);
-  window.copied=[];Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async()=>{throw Error('denied')}}});
-  document.addEventListener('copy',event=>{const field=document.activeElement,text=field.value.slice(field.selectionStart,field.selectionEnd);event.clipboardData.setData('text/plain',text);event.preventDefault();window.copied.push(text)});
- });
- await page.locator('#am .bub.me').getByRole('button',{name:'Скопировать сообщение',exact:true}).click();
- expect(await page.evaluate(()=>window.copied)).toEqual([message]);expect(await page.evaluate(()=>getSelection().toString())).toBe('200');await expect(page.locator('#ai')).toHaveText('Рис 200 г');await expect(page.locator('#toast')).toContainText('Текст скопирован');
+test('native copying uses only the selected text fragment',async({page})=>{
+ await open(page);await captureCopy(page);await selectAndCopy(page,page.locator('#am .bub.me .message-text'),5,13);
+ await expect.poll(()=>page.evaluate(()=>window.copied)).toEqual(['кремчиза']);
 });
-test('copy failure gives an honest message and leaves the draft unchanged',async({page})=>{
- await open(page);await page.locator('#ai').fill('Мой черновик');
- await page.evaluate(()=>{Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async()=>{throw Error('denied')}}});document.execCommand=()=>false});
- await page.locator('#am .bub.me').getByRole('button',{name:'Скопировать сообщение',exact:true}).click();
- await expect(page.locator('#toast')).toContainText('Не удалось скопировать');await expect(page.locator('#ai')).toHaveText('Мой черновик');
+test('the native message context menu is not intercepted',async({page})=>{
+ await open(page);const prevented=await page.locator('#am .bub.me .message-text').evaluate(el=>{const event=new MouseEvent('contextmenu',{bubbles:true,cancelable:true});el.dispatchEvent(event);return event.defaultPrevented});expect(prevented).toBe(false);
 });
 async function ownMenu(page,clipboard){
  await open(page,{telegram:false,ownKb:true});await page.locator('#ai').evaluate(el=>el.textContent='Тестовый текст');await page.locator('#ai').click();
@@ -81,9 +76,10 @@ test('system keyboard remains available when the custom keyboard is disabled',as
 test('Telegram always uses the native editor even with a saved custom-keyboard preference',async({page})=>{
  await open(page,{telegram:true,ownKb:true});await expect(page.locator('#ai')).toHaveAttribute('contenteditable','plaintext-only');await page.locator('#ai').click();await expect(page.locator('#vk')).toHaveCount(0);
 });
-test('live and restored coach messages have working copy actions',async({page})=>{
- await open(page,{coach:true});await page.evaluate(()=>{window.copied=[];Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>window.copied.push(text)}})});
- await page.locator('#chat .bub.me').getByRole('button',{name:'Скопировать сообщение',exact:true}).click();expect(await page.evaluate(()=>window.copied)).toEqual([message]);
+test('live and restored coach messages support native copy without buttons',async({page})=>{
+ await open(page,{coach:true});await captureCopy(page);await expect(page.locator('[data-copy-message],.msg-copy')).toHaveCount(0);
+ await selectAndCopy(page,page.locator('#chat .bub.me .message-text'));await expect.poll(()=>page.evaluate(()=>window.copied)).toEqual([message]);
  await page.locator('#ci').fill('Привет 💪\nКак дела?');await page.locator('.send').getByRole('button',{name:'Отправить',exact:true}).click();
- await expect(page.locator('#chat .bub.ai').last()).toContainText('Тестовый ответ тренера');await page.locator('#chat .bub.me').last().getByRole('button',{name:'Скопировать сообщение',exact:true}).click();expect((await page.evaluate(()=>window.copied)).at(-1)).toBe('Привет 💪\nКак дела?');
+ await expect(page.locator('#chat .bub.ai').last()).toContainText('Тестовый ответ тренера');await expect(page.locator('[data-copy-message],.msg-copy')).toHaveCount(0);
+ await selectAndCopy(page,page.locator('#chat .bub.me .message-text').last());await expect.poll(()=>page.evaluate(()=>window.copied.at(-1))).toBe('Привет 💪\nКак дела?');
 });

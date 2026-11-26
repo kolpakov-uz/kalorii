@@ -1,15 +1,13 @@
 // Native text selection and clipboard helpers shared by the diary and coach.
 const ChatText=(()=>{
  const keys=new WeakMap();let nextKey=0;
- const icon='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>';
- const button='<div class="msg-tools"><button type="button" class="msg-copy" data-copy-message aria-label="Скопировать сообщение" title="Скопировать сообщение">'+icon+'</button></div>';
- function markup(safeHtml){return '<div class="message-text">'+safeHtml+'</div>'+button}
+ function markup(safeHtml){return '<div class="message-text">'+safeHtml+'</div>'}
  function value(editor){return (typeof editor.innerText==='string'?editor.innerText:editor.textContent||'').replace(/\r\n?/g,'\n')}
  function decorate(bubble){
   if(bubble.querySelector('.message-text')||!bubble.textContent.trim())return;
   const text=document.createElement('div');text.className='message-text';
   while(bubble.firstChild)text.append(bubble.firstChild);
-  bubble.append(text);bubble.insertAdjacentHTML('beforeend',button);
+  bubble.append(text);
  }
  function key(message){
   if(message.task)return message.r+'-'+message.task;
@@ -48,12 +46,5 @@ const ChatText=(()=>{
   finally{field.remove();if(active?.isConnected)active.focus({preventScroll:true});restore(saved)}
   return copied;
  }
- document.addEventListener('pointerdown',event=>{if(event.target.closest('[data-copy-message]'))event.preventDefault()});
- document.addEventListener('click',async event=>{
-  const control=event.target.closest('[data-copy-message]');if(!control)return;
-  const content=control.closest('.bub')?.querySelector('.message-text');if(!content)return;
-  const copied=await write(content.textContent);
-  toast(copied?'Текст скопирован':'Не удалось скопировать. Выделите текст и выберите «Копировать».',{type:copied?'success':'warning'});
- });
  return {markup,value,decorate,key,hasSelection,reconcile,allowGesture,write};
 })();
