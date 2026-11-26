@@ -1,0 +1,11 @@
+{
+  "name": "kalorii-ui-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:ui": "node scripts/browser/run.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.1"
+  }
+}

@@ -179,6 +179,8 @@ html,body,.vk,.vk *{touch-action:manipulation}
 :root[data-theme="dark"]{--kbd:transparent}
 .k{box-shadow:inset 0 0 0 1px var(--kbd),0 1px 0 var(--kbd)!important}.k.e,.k.e.dn{box-shadow:none!important}
 .ce{position:relative}
+.ce[contenteditable="plaintext-only"],.ce[contenteditable="true"],.bub,.message-text{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default;touch-action:auto}
+.message-text{white-space:pre-wrap;overflow-wrap:anywhere}.msg-tools{display:flex;justify-content:flex-end;margin:3px -4px -5px}.msg-copy{display:grid;place-items:center;width:34px;height:30px;padding:0;border:0;border-radius:9px;background:none;color:var(--mut);cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none}.bub.me .msg-copy{color:var(--on);opacity:.7}.msg-copy:active{background:color-mix(in srgb,currentColor 12%,transparent)}.msg-copy:focus-visible{outline:2px solid currentColor;outline-offset:1px}
 .ce.act:empty::after{content:"";position:absolute;left:16px;top:12px;width:2px;height:1.15em;margin:0;display:block;background:var(--acc);animation:cb 1s steps(2,start) infinite}
 button{transition:transform .12s ease,filter .12s,background .2s,opacity .2s}
 .plus:active,.sm:active,.pri:active,.ghost:active,.tile:active,.chips button:active,.seg button:active,.gcard:active,.x:active,.pills button:active,.gm:active{transform:scale(.95)}
@@ -259,6 +261,7 @@ button{transition:transform .12s ease,filter .12s,background .2s,opacity .2s}
 <script src="goal-ui.js?v=motivation1"></script>
 <script src="food-request.js?v=retry3"></script>
 <script src="food-tasks.js?v=tasks1"></script>
+<script src="chat-text.js?v=text1"></script>
 <script src="nutrition.js?v=labels3"></script>
 <script src="nutrition-seed.js?v=nutrition1"></script>
 <script src="nutrition-ui.js?v=foodrules2"></script>
@@ -377,7 +380,7 @@ const PLUS='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="
 function thumb(f){return new Promise(ok=>{const i=new Image();i.onload=()=>{const k=Math.min(1,240/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=Math.round(i.width*k);c.height=Math.round(i.height*k);c.getContext('2d').drawImage(i,0,0,c.width,c.height);ok(c.toDataURL('image/jpeg',.55))};i.onerror=()=>ok('');i.src=URL.createObjectURL(f)})}
 function sbtn(t){const b=t.closest('.cmp,.send').querySelector('.sb');if(b)b.disabled=!!VOICE||(!val(t)&&!AF)}
 function gr(t){if(!t.textContent)t.innerHTML='';sbtn(t)}
-const val=e=>(e.textContent||'').trim();
+const val=e=>(typeof ChatText==='undefined'?e.textContent||'':ChatText.value(e)).trim();
 const sleep=ms=>new Promise(r=>setTimeout(r,ms)),hk=()=>cur()+'|'+meal;
 function fd(v){return new Date(v+'T12:00:00').toLocaleDateString('ru',{day:'numeric',month:'long'})}
 function dlab(v){const y=new Date();y.setDate(y.getDate()-1);return (v==today()?'Сегодня':v==y.toLocaleDateString('sv')?'Вчера':new Date(v+'T12:00:00').toLocaleDateString('ru',{weekday:'short'}))+', '+fd(v)}
@@ -391,20 +394,22 @@ function pushH(m,k){(S.hist[k]=S.hist[k]||[]).push(m);const history=S.hist[k];if
 function pills(i){return `<div class="pl4">${[['🔥','Калории',i.k,''],['🥩','Белки',i.p,' г'],['🥑','Жиры',i.f,' г'],['🍞','Углеводы',i.c,' г']].map(([e,l,v,u],j)=>`<span style="animation-delay:${j*90}ms"><i>${e}</i><small>${l}</small><b>${v}${u}</b></span>`).join('')}</div>`}
 function resHtml(ids,day,m,lbl){const L=items(day).filter(x=>ids.includes(x.id));return L.map(i=>`<div class="rc"><div class="rt2"><div><b>${esc(i.n)}</b><small>${i.g} г</small></div><button class="x" aria-label="Удалить" onclick="rmE('${i.id}',this)">×</button></div>${pills(i)}</div>`).join('')+(L.length>1?`<small class="ok">Итого: ${L.reduce((a,x)=>a+x.k,0)} ккал</small>`:'')+`<small class="ok">✓ ${lbl||'Добавлено'} · ${MEALS.find(x=>x[0]==m)[1]}</small>`}
 function msgHtml(m){
- if(m.r==='me')return `<div class="bub me">${m.img?`<img class="ph" alt="" src="${m.img}">`:''}${esc(m.t||'')}</div>`;
+ const text=h=>typeof ChatText==='undefined'?h:ChatText.markup(h);
+ if(m.r==='me'){const body=(m.img?`<img class="ph" alt="" src="${m.img}">`:'')+esc(m.t||'');return `<div class="bub me">${m.t?.trim()?text(body):body}</div>`}
  const job=foodJobs.get(m.lbl);
  if(job)return `<div class="bub ai" id="${job.id}">${foodJobContent(job)}</div>`;
  const reply=FoodTasks.valid(m.thread)?`<button class="food-followup" title="Исправить вес или состав этого блюда" onclick="replyFood('${m.thread}')">Уточнить блюдо</button>`:'';
  if(m.ids?.length)return `<div class="bub ai">${resHtml(m.ids,cur(),meal,m.lbl)}${m.t?`<small class="ok" style="color:var(--ink)">${esc(m.t)}</small>`:''}${reply}</div>`;
- return `<div class="bub ai">${esc(m.t||'')}${reply}</div>`;
+ return `<div class="bub ai">${text(esc(m.t||''))}${reply}</div>`;
 }
-function loadHist(){FoodTasks.prepare(S.hist[hk()]||[]);restoreFoodJobs(cur(),meal);const c=$('#am'),H=(S.hist[hk()]||[]).filter(m=>m.r=='me'||m.t||(m.ids||[]).some(id=>items(cur()).some(x=>x.id==id))),L=items(cur()).filter(x=>x.m==meal),ref=new Set(H.flatMap(m=>m.ids||[])),un=L.filter(x=>!ref.has(x.id)),h=(un.length?[{r:'ai',ids:un.map(x=>x.id)}]:[]).concat(H);
- c.innerHTML=h.length?h.map(msgHtml).join(''):'<p class="hint">Напишите, что вы съели, или добавьте фото. Новые блюда считаются независимо; для исправления выберите «Уточнить блюдо».</p>';c.scrollTop=1e5;drawFoodReply()}
+function loadHist(){FoodTasks.prepare(S.hist[hk()]||[]);restoreFoodJobs(cur(),meal);const c=$('#am'),H=(S.hist[hk()]||[]).filter(m=>m.r=='me'||m.t||(m.ids||[]).some(id=>items(cur()).some(x=>x.id==id))),L=items(cur()).filter(x=>x.m==meal),ref=new Set(H.flatMap(m=>m.ids||[])),un=L.filter(x=>!ref.has(x.id)),h=(un.length?[{ids:un.map(x=>x.id)}]:[]).concat(H);
+ const selecting=typeof ChatText!=='undefined'&&(ChatText.hasSelection(c)||ChatText.hasSelection($('#ai'))),html=h.length?h.map(m=>{const value=msgHtml(m);return typeof ChatText==='undefined'?value:value.replace('<div ',`<div data-message-key="${esc(ChatText.key(m))}" `)}).join(''):'<p class="hint">Напишите, что вы съели, или добавьте фото. Новые блюда считаются независимо; для исправления выберите «Уточнить блюдо».</p>';
+ if(typeof ChatText==='undefined')c.innerHTML=html;else ChatText.reconcile(c,html);if(!selecting)c.scrollTop=1e5;drawFoodReply()}
 function setMeal(m){foodReply=null;meal=m;document.querySelectorAll('.seg button').forEach(b=>b.classList.toggle('on',b.dataset.m==m));loadHist();drawFq()}
 function pickDay(v){if(!v)return;foodReply=null;setDay(v);const l=$('#dl');if(l)l.textContent=dlab(cur());loadHist();drawFq()}
 function replyFood(thread){if(!FoodTasks.valid(thread))return;foodReply={key:hk(),thread};drawFoodReply();$('#ai')?.focus()}
 function drawFoodReply(){const bar=document.getElementById('food-reply');if(!bar)return;const source=foodReply?.key===hk()&&(S.hist[hk()]||[]).find(message=>message.r==='me'&&message.thread===foodReply.thread);bar.hidden=!source;if(source)bar.innerHTML=`<span>Уточнение: ${esc((source.t||'Блюдо по фото').slice(0,70))}</span><button class="x" aria-label="Новая независимая запись" onclick="foodReply=null;drawFoodReply()">×</button>`}
-function am(h,cls){const c=$('#am'),h0=c.querySelector('.hint');if(h0)h0.remove();const b=document.createElement('div');b.className='bub in '+cls;b.innerHTML=h;c.append(b);c.scrollTop=1e5;return b}
+function am(h,cls){const c=$('#am'),h0=c.querySelector('.hint');if(h0)h0.remove();const b=document.createElement('div');b.className='bub in '+cls;b.innerHTML=h;if(cls==='me'&&typeof ChatText!=='undefined')ChatText.decorate(b);c.append(b);c.scrollTop=1e5;return b}
 function think(w){w.innerHTML='<span class="dots"><i></i><i></i><i></i></span><small class="th" role="status">Считаю КБЖУ…</small>';return()=>{}}
 function addEntry(o,d,day,commit=true){const L=items(day);S.log[day]=L;o.id=Date.now()+Math.random().toString(36).slice(2,6);L.push(o);saveFood(o.n,o.g,o.k,o.p,o.f,o.c,d===false?'':d||'',o);if(commit){save();render()}return o.id}
 function rmE(id,b){S.log[cur()]=items(cur()).filter(x=>x.id!=id);save();render();const r=b.closest('.rc');r.style.cssText='opacity:.3;transform:scale(.97)';b.remove()}
@@ -680,9 +685,9 @@ const SYS='Ты — дружелюбный ИИ-тренер по питанию
 function ctx(){const p=S.profile,n=norm(p),c=cur(),t=tot(c),W=S.rem.wc||{from:'09:00',to:'21:00',ev:2},ds=Object.keys(S.log).filter(d=>S.log[d].length).sort().reverse().slice(0,7);
  return `Сегодня ${today()} (${new Date().toLocaleDateString('ru',{weekday:'long'})}), время ${new Date().toTimeString().slice(0,5)}. На экране открыт день ${c}. Профиль: ${p.sex=='m'?'мужчина':'женщина'}, ${p.a} лет, ${p.h} см, ${p.w} кг, цель: ${(GOALS.find(g=>g[0]==p.goal)||GOALS[0])[1]}. Норма: ${n.k} ккал, Б ${n.p} / Ж ${n.f} / У ${n.c} г${S.custom?' (изменена вручную)':''}.${goalCtx()} Съедено за ${c}: ${t.k} ккал, Б ${R(t.p)} Ж ${R(t.f)} У ${R(t.c)}. Записи по дням (id:блюдо,приём,г,ккал): ${ds.map(d=>d+' → '+S.log[d].map(i=>`${i.id}:${i.n},${i.m},${i.g}г,${i.k}`).join('; ')).join(' || ')||'нет'}. Напоминания: ${REM.map(r=>`${r[0]} ${S.rem.on[r[0]]?'вкл':'выкл'} ${S.rem.t[r[0]]||r[2]}`).join(', ')}; вода ${S.rem.on.w?'вкл':'выкл'} ${W.from}–${W.to} каждые ${W.ev} ч. Воды выпито за ${c}: ${S.water[c]||0} мл.`}
 const CH=['Что съесть на ужин?','Разбери мой день','Добавь на завтрак 200 г творога 1%','Напоминай пить воду каждые 2 часа','Поставь белки 150 г в день','Записал силовую, 45 минут'];
-function bub(r,t,a){const b=document.createElement('div');b.className='bub '+(r=='user'?'me':'ai')+(a?' in':'');b.textContent=t;return b}
+function bub(r,t,a){const b=document.createElement('div');b.className='bub '+(r=='user'?'me':'ai')+(a?' in':'');b.textContent=t;if(typeof ChatText!=='undefined')ChatText.decorate(b);return b}
 function toBot(s){scrollTo({top:document.body.scrollHeight,behavior:s?'smooth':'auto'})}
-function vCoach(){return `<div class="cw"><h1>ИИ-тренер</h1><p class="sub">Знает вашу норму и рацион за сегодня</p><div class="msgs" id="chat">${S.chat.length?S.chat.map(m=>`<div class="bub ${m.role=='user'?'me':'ai'}">${esc(m.content)}</div>`).join(''):'<div class="bub ai">Привет! Подскажу, что съесть, чтобы уложиться в норму, и разберу ваш день.</div>'}</div></div><div class="comp"><div class="chips">${CH.map((t,i)=>`<button onclick="ask(CH[${i}])">${t}</button>`).join('')}</div><div class="send"><div id="ci" class="ce" contenteditable="${OWNKB()?'false':'plaintext-only'}" onclick="kbOpen(this,event)" role="textbox" aria-multiline="true" aria-label="Вопрос тренеру" data-ph="Ваш вопрос…" oninput="gr(this)"></div>${voiceButton('ci')}<button class="sb" aria-label="Отправить" onpointerdown="event.preventDefault()" onclick="ask()" disabled><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div></div>`}
+function vCoach(){return `<div class="cw"><h1>ИИ-тренер</h1><p class="sub">Знает вашу норму и рацион за сегодня</p><div class="msgs" id="chat">${S.chat.length?S.chat.map(m=>`<div class="bub ${m.role=='user'?'me':'ai'}">${typeof ChatText==='undefined'?esc(m.content):ChatText.markup(esc(m.content))}</div>`).join(''):'<div class="bub ai">Привет! Подскажу, что съесть, чтобы уложиться в норму, и разберу ваш день.</div>'}</div></div><div class="comp"><div class="chips">${CH.map((t,i)=>`<button onclick="ask(CH[${i}])">${t}</button>`).join('')}</div><div class="send"><div id="ci" class="ce" contenteditable="${OWNKB()?'false':'plaintext-only'}" onclick="kbOpen(this,event)" role="textbox" aria-multiline="true" aria-label="Вопрос тренеру" data-ph="Ваш вопрос…" oninput="gr(this)"></div>${voiceButton('ci')}<button class="sb" aria-label="Отправить" onpointerdown="event.preventDefault()" onclick="ask()" disabled><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div></div>`}
 function local(){const n=norm(S.profile),d=tot(today()),l=n.k-d.k,pl=n.p-d.p;return `Сегодня съедено ${d.k} из ${n.k} ккал. `+(l>0?`Осталось ${l} ккал`+(pl>10?` и ещё около ${R(pl)} г белка — подойдут творог, куриная грудка или яйца.`:'.'):`Норма превышена на ${-l} ккал — на ужин лучше лёгкий белковый вариант и овощи.`)+'\n\nЭто упрощённый совет без ИИ: полноценные ответы появятся после подключения вашего API.'}
 function saveFood(n,g,k,p,f,c,d,entry){
  const food=DishCatalog.record(S,entry||{n,g,k,p,f,c,m:meal},{foodId:entry?.dishId,alias:d||''});
@@ -743,7 +748,7 @@ async function ask(t){if(VOICE)return toast('Сначала завершите �
   acts=applyActions(response.actions);out=response.reply;
  }
  catch(e){if(e.code=='na'){await new Promise(r=>setTimeout(r,900));out=local()}else out=FoodRequest.message(e,'Повторите сообщение, чтобы продолжить.')}
- box.textContent=out;if(acts.length){const a=document.createElement('div');a.className='acts';a.innerHTML=acts.map(x=>`<span>✓ ${esc(x)}</span>`).join('')+'<button onclick="undo()">Отменить</button>';box.after(a)}
+ box.textContent=out;if(typeof ChatText!=='undefined')ChatText.decorate(box);if(acts.length){const a=document.createElement('div');a.className='acts';a.innerHTML=acts.map(x=>`<span>✓ ${esc(x)}</span>`).join('')+'<button onclick="undo()">Отменить</button>';box.after(a)}
  S.chat.push({role:'assistant',content:out});save();ask.b=0;toBot(1)}
 /* ---- прогресс ---- */
 function vStats(){const n=norm(S.profile),D=[...Array(7)].map((_,i)=>{const d=new Date();d.setDate(d.getDate()-6+i);const k=d.toLocaleDateString('sv');return{l:d.toLocaleDateString('ru',{weekday:'short'}),k:tot(k).k}}),act=D.filter(x=>x.k),avg=act.length?R(act.reduce((a,x)=>a+x.k,0)/act.length):0,W=S.weights,ch=W.length>1?(W.at(-1).w-W[0].w).toFixed(1):'0.0';
@@ -875,7 +880,7 @@ function saveWorkout(){if(!WMINUTES.includes(WM))return toast('Выберите 
  document.addEventListener('pointermove',e=>{if(!on)return;dy=Math.max(0,e.clientY-y0);sh.style.transform=`translateY(${dy}px)`;sh.parentNode.style.background=`rgba(0,0,0,${.45*(1-Math.min(1,dy/400))})`},{passive:true});
  const end=()=>{if(!on)return;on=false;const o=sh.parentNode;if(dy>110||dy/(Date.now()-t0+1)>.6){sh.style.transition='transform .22s ease';sh.style.transform='translateY(100%)';o.style.transition='background .22s';o.style.background='transparent';closeSheet(1)}else{sh.style.transition='transform .25s cubic-bezier(.2,.8,.2,1)';sh.style.transform='';o.style.background=''}};
  document.addEventListener('pointerup',end);document.addEventListener('pointercancel',end)})();
-document.addEventListener('touchmove',e=>{if(!document.querySelector('#sheet .ov'))return;let n=e.target;while(n&&n!==document.body&&n.nodeType==1){const c=getComputedStyle(n);if((/(auto|scroll)/.test(c.overflowY)&&n.scrollHeight>n.clientHeight+1)||(/(auto|scroll)/.test(c.overflowX)&&n.scrollWidth>n.clientWidth+1))return;n=n.parentNode}e.preventDefault()},{passive:false});
+document.addEventListener('touchmove',e=>{if(!document.querySelector('#sheet .ov')||typeof ChatText!=='undefined'&&ChatText.allowGesture(e.target))return;let n=e.target;while(n&&n!==document.body&&n.nodeType==1){const c=getComputedStyle(n);if((/(auto|scroll)/.test(c.overflowY)&&n.scrollHeight>n.clientHeight+1)||(/(auto|scroll)/.test(c.overflowX)&&n.scrollWidth>n.clientWidth+1))return;n=n.parentNode}e.preventDefault()},{passive:false});
 let CK=false,CKh=0,KT=null,KL='ru',LL='ru',SH=1,KS=0,KP=0,KHT=0;
 const KH=228,SAFE=(()=>{try{const p=document.createElement('div');p.style.cssText='position:fixed;left:0;bottom:0;width:1px;height:env(safe-area-inset-bottom,0px);visibility:hidden';document.body.append(p);const h=p.offsetHeight;p.remove();return h||0}catch(e){return 0}})();
 const OWNKB=()=>!KaloriiTelegram.active&&S.ownKb!==false,ALT={'е':'ё','ь':'ъ'};
@@ -890,7 +895,7 @@ let LS='';
 function showLy(){const K=$('#vk');if(!K)return;const st=KL+'|'+(SH>0)+'|'+(SH==2)+'|'+LL;if(st==LS)return;LS=st;K.querySelectorAll('.ly').forEach(x=>x.hidden=x.dataset.l!=KL);K.classList.toggle('up',SH>0);K.classList.toggle('caps',SH==2);K.querySelectorAll('.abc').forEach(x=>x.textContent=LL=='ru'?'АБВ':'ABC')}
 let CP=0,BUF=[],FR=0,KD=false,RC=new WeakMap();
 function krect(b){let r=RC.get(b);if(!r){const q=b.getBoundingClientRect();r={left:q.left,top:q.top,width:q.width,height:q.height};RC.set(b,r)}return r}
-let SS=null,SE=null,DH=0,LT=0,LX=0,LPF=false,LTAP=0;
+let SS=null,SE=null,DH=0,LT=0,LX=0,LY=0,LPF=false,LTAP=0;
 const selR=()=>SS!=null&&SE!=null&&SS!=SE?[Math.min(SS,SE),Math.max(SS,SE)]:null;
 function removeHandles(){document.querySelectorAll('.hd').forEach(h=>h.remove())}
 function removeMenu(){const m=document.getElementById('cmenu');if(m)m.remove()}
@@ -902,9 +907,14 @@ function hdDown(e){e.preventDefault();e.stopPropagation();removeMenu();DH=+e.cur
 function showMenu(x,y){removeMenu();const r=selR(),m=document.createElement('div'),b=[];m.className='cm';m.id='cmenu';if(r)b.push(['Копировать','copy'],['Вырезать','cut'],['Вставить','paste'],['Выделить всё','all']);else{if(BUF.length)b.push(['Выделить всё','all']);b.push(['Вставить','paste'])}m.innerHTML=b.map(([t,c])=>`<button data-c="${c}">${t}</button>`).join('');m.style.left=Math.max(8,Math.min(innerWidth-300,x-110))+'px';m.style.top=Math.max(8,y-56)+'px';m.addEventListener('pointerdown',ev=>{ev.preventDefault();const c=ev.target.dataset.c;if(c)menuAct(c)});document.body.append(m)}
 async function menuAct(c){const r=selR(),txt=r?BUF.slice(r[0],r[1]).join(''):'';
  if(c=='all'){SS=0;SE=BUF.length;CP=BUF.length;removeMenu();kbRender(KT,BUF);return}
- if(c=='copy'||c=='cut'){try{await navigator.clipboard.writeText(txt)}catch(e){const t=document.createElement('textarea');t.value=txt;document.body.append(t);t.select();try{document.execCommand('copy')}catch(x){}t.remove()}if(c=='cut'&&r){BUF.splice(r[0],r[1]-r[0]);CP=r[0];SS=SE=null;kbQueue();kbSync()}removeMenu();return}
+ if(c=='copy'||c=='cut'){
+  const target=KT,before=BUF.join(''),copied=await ChatText.write(txt);
+  if(!copied){toast('Не удалось скопировать. Текст оставлен без изменений.',{type:'warning'});removeMenu();return}
+  if(c=='cut'&&r){if(target!==KT||BUF.join('')!==before){toast('Текст изменился во время копирования. Повторите вырезание.',{type:'warning'});removeMenu();return}BUF.splice(r[0],r[1]-r[0]);CP=r[0];SS=SE=null;kbQueue();kbSync()}
+  toast('Текст скопирован',{type:'success'});removeMenu();return
+ }
  if(c=='paste'){try{insertAtCaret(await navigator.clipboard.readText())}catch(e){toast('Вставка недоступна')}removeMenu()}}
-function insertAtCaret(t){const r=selR(),ca=Array.from(String(t).replace(/\r/g,'')).slice(0,500);if(r){BUF.splice(r[0],r[1]-r[0]);CP=r[0];SS=SE=null}BUF.splice(CP,0,...ca);CP+=ca.length;kbQueue();kbSync()}
+function insertAtCaret(t){const r=selR(),ca=Array.from(String(t).replace(/\r/g,''));if(r){BUF.splice(r[0],r[1]-r[0]);CP=r[0];SS=SE=null}BUF.splice(CP,0,...ca);CP+=ca.length;kbQueue();kbSync()}
 function selectWord(p){const a=BUF,ok=c=>/[\p{L}\p{N}%]/u.test(c);let s=Math.min(p,a.length),e=s;while(s>0&&ok(a[s-1]))s--;while(e<a.length&&ok(a[e]))e++;if(s==e)return;SS=s;SE=e;CP=e;kbRender(KT,BUF)}
 function kbRender(el,a){a=a||BUF;CP=Math.min(CP,a.length);if(SS!=null&&SE!=null){SS=Math.min(SS,a.length);SE=Math.min(SE,a.length)}const r=selR();if(!a.length){el.innerHTML='';el.classList.remove('hc');removeHandles();return}el.classList.add('hc');
  if(r){el.innerHTML=esc(a.slice(0,r[0]).join(''))+'<span class="sel">'+esc(a.slice(r[0],r[1]).join(''))+'</span>'+esc(a.slice(r[1]).join(''));placeHandles(el)}
@@ -922,9 +932,9 @@ function press(k){const el=KT;if(!el)return;const lt=KL=='ru'||KL=='en';
  if(k=='bs'){if(CP>0){a.splice(CP-1,1);CP--}}
  else{if(k==' '&&(KL=='num'||KL=='sym'))KL=LL;let c=k=='ret'?'\n':k;if(lt&&SH>0)c=c.toUpperCase();const ca=Array.from(c);a.splice(CP,0,...ca);CP+=ca.length;if(lt&&SH==1)SH=0}
  kbQueue();kbSync()}
-function kbSync(reset){if(!CK||!KT)return;if(reset){SS=SE=null;removeHandles();BUF=Array.from(KT.textContent);CP=BUF.length;kbRender(KT,BUF)}const t=BUF.slice(0,CP).join('');if(SH!=2&&(KL=='ru'||KL=='en'))SH=(!t||/[.!?]\s$/.test(t)||/\n$/.test(t))?1:0;showLy()}
+function kbSync(reset){if(!CK||!KT)return;if(reset){SS=SE=null;removeHandles();BUF=Array.from(ChatText.value(KT));CP=BUF.length;kbRender(KT,BUF)}const t=BUF.slice(0,CP).join('');if(SH!=2&&(KL=='ru'||KL=='en'))SH=(!t||/[.!?]\s$/.test(t)||/\n$/.test(t))?1:0;showLy()}
 function applyKb(){document.documentElement.style.setProperty('--kb',CKh+'px');document.body.classList.add('kbd');fixVV();if(V=='coach')toBot()}
-function kbOpen(el,ev){if(!OWNKB())return;if(LPF){LPF=false;return}const p0=ev?posFromPoint(el,ev.clientX,ev.clientY):null;KT=el;BUF=Array.from(el.textContent);document.querySelectorAll('.ce').forEach(e=>e.classList.toggle('act',e==el));
+function kbOpen(el,ev){if(!OWNKB())return;if(LPF){LPF=false;return}const p0=ev?posFromPoint(el,ev.clientX,ev.clientY):null;KT=el;BUF=Array.from(ChatText.value(el));document.querySelectorAll('.ce').forEach(e=>e.classList.toggle('act',e==el));
  if(CK&&!document.getElementById('vk'))CK=false;
  if(CK){const now=Date.now();if(ev&&p0!=null&&now-LTAP<350){LTAP=0;selectWord(p0);return}LTAP=now;selClear();if(p0!=null){CP=p0;kbRender(el,BUF)}kbSync();return}
  const host=el.closest('.sh')||el.closest('.comp');if(!host)return;
@@ -951,8 +961,8 @@ function asPick(id){const i=document.getElementById(id);asClose();if(i)i.click()
 function kbClose(){if(!CK)return;kbFlush();selClear();hidePop();CK=false;clearTimeout(KHT);const K=document.getElementById('vk');if(K)K.remove();document.querySelectorAll('.ce.act').forEach(e=>e.classList.remove('act'));document.querySelectorAll('.ov.kb').forEach(e=>e.classList.remove('kb'));document.body.classList.remove('kbd');fixVV()}
 function toggleKb(){S.ownKb=!OWNKB();save();kbClose();render()}
 document.addEventListener('pointerdown',e=>{if(CK&&!e.target.closest('#vk,.ce,.cmp,.send,.comp,.menu,.cm,.hd'))kbClose()});
-document.addEventListener('pointerdown',e=>{const f=e.target.closest('.ce');if(!f||!CK||!OWNKB()||f!==KT)return;LX=e.clientX;clearTimeout(LT);LT=setTimeout(()=>{LPF=true;const p=posFromPoint(f,LX,e.clientY);if(p!=null&&!selR())CP=p;showMenu(LX,e.clientY)},480)});
-document.addEventListener('pointerup',()=>clearTimeout(LT));document.addEventListener('pointercancel',()=>clearTimeout(LT));document.addEventListener('pointermove',e=>{if(Math.abs(e.clientX-LX)>8)clearTimeout(LT)});
+document.addEventListener('pointerdown',e=>{const f=e.target.closest('.ce');if(!f||!CK||!OWNKB()||f!==KT)return;LX=e.clientX;LY=e.clientY;clearTimeout(LT);LT=setTimeout(()=>{LPF=true;const p=posFromPoint(f,LX,e.clientY);if(p!=null&&!selR())CP=p;showMenu(LX,e.clientY)},480)});
+document.addEventListener('pointerup',()=>clearTimeout(LT));document.addEventListener('pointercancel',()=>clearTimeout(LT));document.addEventListener('pointermove',e=>{if(Math.abs(e.clientX-LX)>8||Math.abs(e.clientY-LY)>8)clearTimeout(LT)});
 document.addEventListener('touchmove',e=>{if(CK&&e.target.closest('#vk')&&!e.target.closest('.eg'))e.preventDefault()},{passive:false});
 if(window.visualViewport){const kbFix=()=>{if(CK)return;const v=visualViewport;document.documentElement.style.setProperty('--kb',Math.max(0,innerHeight-v.height-v.offsetTop)+'px');document.body.classList.toggle('kbd',innerHeight-v.height>120);if(V=='coach'&&innerHeight-v.height>120)setTimeout(()=>toBot(),60)};visualViewport.addEventListener('resize',kbFix);visualViewport.addEventListener('scroll',kbFix)}
 KaloriiTelegram.init(()=>{if(!S.profile)return;if(document.querySelector('#sheet .ov'))closeSheet();else go('today')});
