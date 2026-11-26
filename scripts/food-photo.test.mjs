@@ -50,6 +50,28 @@ function setup(initial={},nutrition=false) {
   };
 }
 const pictures=body=>body.contents.flatMap(turn=>turn.parts.filter(part=>part.inlineData).map(part=>part.inlineData));
+
+const cheeseLabel={basisGrams:100,energy:930,energyUnit:'kJ',protein:5,fat:22.5,carbs:.5};
+const labeledCheese={actions:[{op:'add',name:'Кремчиз',grams:40,kcal100:930,protein100:5,fat100:22.5,carbs100:.5,label:cheeseLabel}],reply:'По этикетке'};
+test('an inflated photo answer is retried before a converted label is saved once',async()=>{
+ const x=setup({},true);x.reply((_request,_options,count)=>count===1?{...labeledCheese,actions:[{...labeledCheese.actions[0],label:undefined}]}:labeledCheese);
+ await x.send('40 гр',true);assert.equal(x.requests.length,2);assert.equal(x.entries().length,1);assert.equal(x.entries()[0].g,40);assert.equal(x.entries()[0].k,89);assert.equal(x.entries()[0].f,9);assert.ok(x.state.nutrition.rows[0].k<223);
+});
+test('fresh photo values override cached estimates and update later text portions',async()=>{
+ const x=setup({},true);x.run("Nutrition.remember(S,{n:'Кремчиз',k:300,p:5,f:25,c:10})");x.reply(labeledCheese);await x.send('40 гр',true);
+ assert.equal(x.entries()[0].k,89);await x.send('Кремчиз 100 г');assert.equal(x.requests.length,1);assert.equal(x.entries()[1].k,222);
+});
+test('a label serving is not mistaken for per-100 nutrition or the eaten portion',async()=>{
+ const x=setup({},true);x.reply({...labeledCheese,actions:[{...labeledCheese.actions[0],label:{basisGrams:40,energy:90,energyUnit:'kcal',protein:2,fat:9,carbs:.2}}]});
+ await x.send('80 г',true);assert.equal(x.entries()[0].g,80);assert.equal(x.entries()[0].k,180);assert.equal(x.entries()[0].per100.k,225);
+});
+test('a new photo preserves explicitly saved manual product values',async()=>{
+ const x=setup({foods:[{id:'manual-cheese',n:'Кремчиз',k:240,p:5,f:22,c:5,custom:true}]},true);x.reply(labeledCheese);await x.send('40 г',true);assert.equal(x.entries()[0].k,96);assert.equal(x.state.foods[0].k,240);
+});
+test('an implausible partial calorie edit leaves the existing diary and nutrition cache intact',async()=>{
+ const x=setup({},true);x.reply(labeledCheese);await x.send('40 г',true);const entry=x.entries()[0];
+ x.reply({actions:[{op:'edit',id:entry.id,kcal100:930}],reply:'Исправил'});await x.send('Пересчитай по фото');assert.equal(x.entries().length,1);assert.equal(x.entries()[0].k,89);assert.ok(x.state.nutrition.rows[0].k<223);
+});
 test('Greek yogurt goes straight to calculation with the real preparation UI installed',async()=>{
  const x=setup({},true),choice=x.preparationUI();x.reply({actions:[{op:'add',name:'Греческий йогурт',grams:50,kcal100:90,protein100:9,fat100:2,carbs100:4}],reply:'Примерная оценка'});await x.send('50 грамм греческого йогурта');assert.equal(x.requests.length,1);assert.equal(x.entries()[0].g,50);assert.equal(choice.hidden,true);assert.equal(choice.innerHTML,'');
 });

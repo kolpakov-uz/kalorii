@@ -1,4 +1,5 @@
 import {coachActions} from './ai-schema.js';
+import '../nutrition.js';
 
 function retryDelay(response){
   const header=response.headers.get('Retry-After');
@@ -58,8 +59,10 @@ export function foodText(data) {
   const actions=Array.isArray(response.actions)?response.actions:Array.isArray(response.items)?response.items.map(item=>({...item,op:'add'})):null;
   if(!actions)invalid();
   const amount=value=>(typeof value==='number'||typeof value==='string'&&value.trim()!=='')&&Number.isFinite(Number(value))&&Number(value)>=0;
-  for(const action of actions){
+  for(let i=0;i<actions.length;i++){
+    let action=actions[i];
     if(!action||typeof action!=='object'||Array.isArray(action))invalid();
+    try{action=Nutrition.normalizeAction(action);actions[i]=action}catch{invalid()}
     if(Object.hasOwn(action,'foodId')&&(typeof action.foodId!=='string'||action.foodId!==''&&!/^[a-zA-Z0-9_.-]{1,100}$/.test(action.foodId)))invalid();
     for(const field of ['grams','g','kcal','protein','fat','carbs','kcal100','protein100','fat100','carbs100']){
       if(action[field]!=null&&!amount(action[field]))invalid();
@@ -76,11 +79,16 @@ export function foodText(data) {
       if(typeof action.id!=='string'||!action.id.trim())invalid();
       if(op==='edit'&&!['name','grams','kcal100','protein100','fat100','carbs100'].some(field=>action[field]!=null))invalid();
     }else invalid();
+    if(op!=='delete'&&!Nutrition.saneAction({...action,op}))invalid();
   }
   if(!actions.length){
     const reply=typeof response.reply==='string'?response.reply.trim():'';
     const vagueFailure=/^(?:не удалось (?:посчитать|подсчитать|рассчитать|обработать запрос)(?:[.,!…\s]+попробуйте (?:ещ[её] раз|позже))?|попробуйте (?:ещ[её] раз|позже))[.!…\s]*$/i.test(reply);
     if(!reply||vagueFailure||/(записал|записан|добавил|добавлен|внес|внёс)/i.test(reply))invalid();
+  }
+  if(actions.some(action=>action.label)){
+    if(actions.every(action=>action.label))response.reply='КБЖУ рассчитаны по этикетке с учётом веса порции.';
+    return JSON.stringify({...response,actions});
   }
   return text;
 }

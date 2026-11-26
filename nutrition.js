@@ -61,6 +61,25 @@ globalThis.Nutrition = (() => {
   return x.fat===y.fat&&preparationMatches&&!x.excludedPrep.includes(y.prep)&&!y.excludedPrep.includes(x.prep)&&(!x.kind||!y.kind||x.kind===y.kind)&&key(x.brand)===key(y.brand);
  }
  function valid(row){return row&&typeof row.n==='string'&&row.n.length>0&&row.n.length<=160&&fields.every(k=>typeof row[k]==='number'&&Number.isFinite(row[k])&&row[k]>=0&&row[k]<=(k==='k'?950:100))}
+ // A loose check for gross unit/column errors, not a replacement for label kcal.
+ // Alcohol has energy outside P/F/C; fibre and polyols may reduce energy.
+ function plausible(row){
+  if(!valid(row))return false;
+  const expected=4*row.p+9*row.f+4*row.c;
+  return row.p+row.f+row.c<=110&&(expected<40||row.k<=expected*2+40||/(?:алкогол|водк|вино|вина|вином|пиво|пива|коньяк|виски|ликер|ром\b|vodka|wine|beer|whisk|liqueur)/i.test(row.n));
+ }
+ function normalizeAction(action){
+  if(action.label==null)return action;
+  const label=action.label,amount=v=>(typeof v==='number'||typeof v==='string'&&v.trim()!=='')&&Number.isFinite(+v)&&+v>=0;
+  if(!label||typeof label!=='object'||!['kcal','kJ'].includes(label.energyUnit)||!['basisGrams','energy','protein','fat','carbs'].every(k=>amount(label[k]))||+label.basisGrams<=0||+label.basisGrams>3000)throw Error('invalid_label');
+  const factor=100/+label.basisGrams;
+  return {...action,kcal100:+label.energy*factor/(label.energyUnit==='kJ'?4.184:1),protein100:+label.protein*factor,fat100:+label.fat*factor,carbs100:+label.carbs*factor};
+ }
+ function saneAction(action,base={}){
+  const row={n:action.name||action.n||base.n||'Продукт'},grams=+(action.grams||action.g||100);
+  for(const [field,per100,total] of [['k','kcal100','kcal'],['p','protein100','protein'],['f','fat100','fat'],['c','carbs100','carbs']])row[field]=action[per100]!=null?+action[per100]:action.op==='add'&&action[total]!=null?+action[total]*100/grams:base[field];
+  return !fields.every(k=>row[k]!=null)||plausible(row);
+ }
  function store(state){const db=state.nutrition;if(!db||db.version!==1||!Array.isArray(db.rows))state.nutrition={version:1,rows:[],defaults:{}};state.nutrition.defaults=state.nutrition.defaults||{};return state.nutrition}
  function cleanName(text){return words(withoutPortion(text).replace(/\d+(?:\.\d+)?\s*(?:кг|грамм[а-я]*|гр|г|g)(?=\s|$)/g,' ')).filter(w=>!['я','съел','съела','ела','ел','добавь','запиши','сегодня','примерно','около'].includes(w)).join(' ')}
  function parse(text){
@@ -79,14 +98,14 @@ globalThis.Nutrition = (() => {
   const q=parse(text);if(!q||q.excludedPrep.length)return null;
   const manual=(state.foods||[]).filter(d=>d.custom&&!d.hidden&&compatible(q.n,d.n)&&[d.n,...d.aliases||[]].some(n=>key(n)===q.key));
   if(manual.length===1)return {...manual[0],g:q.g,origin:'manual'};
-  const matches=store(state).rows.filter(row=>valid(row)&&compatible(q.n,row.n)&&[row.n,...row.aliases||[]].some(n=>key(n)===q.key));
+  const matches=store(state).rows.filter(row=>valid(row)&&(row.origin==='manual'||plausible(row))&&compatible(q.n,row.n)&&[row.n,...row.aliases||[]].some(n=>key(n)===q.key));
   const row=matches.find(r=>r.origin==='manual')||matches.sort((a,b)=>b.updatedAt-a.updatedAt)[0];
   // Estimates expire instead of becoming an indefinite AI answer cache.
   if(!row||row.origin==='estimate'&&now-row.checkedAt>week)return null;
   return {...row,g:q.g};
  }
  function remember(state,value,alias='',origin='estimate',now=Date.now()){
-  if(!valid(value))return null;const db=store(state),id=key(value.n),existing=db.rows.find(r=>key(r.n)===id);
+  if(!valid(value)||origin!=='manual'&&!plausible(value))return null;const db=store(state),id=key(value.n),existing=db.rows.find(r=>key(r.n)===id);
   if(existing?.origin==='manual'&&origin!=='manual')return existing;
   if(existing&&['usda','off'].includes(existing.origin)&&origin==='estimate')return existing;
   const names=[value.n,...(existing?.aliases||[])];const q=parse(alias);
@@ -98,5 +117,5 @@ globalThis.Nutrition = (() => {
   if(db.rows.length>1000)db.rows.length=1000;return row;
  }
  function merge(state,rows){const db=store(state);for(const row of rows||[]){if(!valid(row)||!['usda','off','estimate','manual'].includes(row.origin)||!Number.isFinite(row.checkedAt)||!Number.isFinite(row.updatedAt))continue;const old=db.rows.find(r=>key(r.n)===key(row.n));if(old?.origin==='manual'&&row.origin!=='manual'||old&&old.updatedAt>row.updatedAt)continue;const saved=remember(state,row,'',row.origin,row.updatedAt);if(saved){saved.checkedAt=row.checkedAt;saved.aliases=[...new Set([row.n,...(row.aliases||[]).filter(a=>typeof a==='string'&&a.length<=160&&compatible(a,row.n))])].slice(0,30)}}}
- return {norm,key,identity,compatible,family,valid,store,parse,prepare,choose,lookup,remember,merge,labels,week};
+ return {norm,key,identity,compatible,family,valid,plausible,normalizeAction,saneAction,store,parse,prepare,choose,lookup,remember,merge,labels,week};
 })();

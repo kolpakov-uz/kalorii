@@ -8,6 +8,31 @@ import worker from '../worker/index.js';
 const create=()=>{const c=vm.createContext({Date});vm.runInContext(fs.readFileSync(new URL('../nutrition.js',import.meta.url),'utf8'),c);return c.Nutrition};
 const macros={k:100,p:15,f:1,c:4},row=n=>({n,...macros});
 const kv=()=>{const m=new Map();return {m,get:async k=>m.get(k)||null,put:async(k,v)=>{m.set(k,v)},delete:async k=>m.delete(k),list:async({prefix})=>({keys:[...m.keys()].filter(k=>k.startsWith(prefix)).map(name=>({name}))})}};
+
+test('label units and serving basis are normalized before applying the eaten weight',()=>{
+ const n=create(),action={op:'add',name:'Кремчиз',grams:40,kcal100:930,protein100:5,fat100:22.5,carbs100:.5};
+ const kj=n.normalizeAction({...action,label:{basisGrams:100,energy:930,energyUnit:'kJ',protein:5,fat:22.5,carbs:.5}});
+ assert.ok(Math.abs(kj.kcal100-930/4.184)<1e-9);assert.equal(Math.round(kj.kcal100*40/100),89);assert.equal(kj.grams,40);assert.equal(n.saneAction(kj),true);
+ const portion=n.normalizeAction({...action,label:{basisGrams:40,energy:90,energyUnit:'kcal',protein:2,fat:9,carbs:.2}});
+ assert.equal(portion.kcal100,225);assert.equal(portion.protein100,5);assert.equal(portion.fat100,22.5);assert.equal(portion.carbs100,.5);assert.equal(portion.grams,40);
+ assert.equal(n.normalizeAction(portion).kcal100,225);
+});
+test('gross energy errors are rejected without replacing legitimate label calories with a macro formula',()=>{
+ const n=create(),cheese={n:'Кремчиз',k:222,p:5,f:22.5,c:.5};assert.equal(n.plausible({...cheese,k:930}),false);assert.equal(n.plausible(cheese),true);
+ for(const value of [{n:'Масло',k:884,p:0,f:100,c:0},{n:'Клетчатка',k:190,p:1,f:0,c:90},{n:'Эритрит',k:0,p:0,f:0,c:99},{n:'Вино',k:80,p:0,f:0,c:10},{n:'Чай',k:1,p:0,f:0,c:0}])assert.equal(n.plausible(value),true,value.n);
+ assert.equal(n.saneAction({op:'edit',kcal100:930},cheese),false);assert.equal(n.saneAction({op:'edit',grams:20},cheese),true);
+});
+test('corrupt estimates are bypassed and cannot enter the cache while manual values remain personal',()=>{
+ const n=create(),bad={n:'Кремчиз',k:930,p:5,f:22.5,c:.5},s={};assert.equal(n.remember(s,bad),null);
+ s.nutrition={version:1,defaults:{},rows:[{...bad,key:n.key(bad.n),origin:'estimate',checkedAt:Date.now(),updatedAt:Date.now()}]};assert.equal(n.lookup(s,'Кремчиз 40 г'),null);
+ n.remember(s,{...bad,k:222});assert.equal(n.lookup(s,'Кремчиз 40 г').k,222);
+ n.remember(s,bad,'','manual');assert.equal(n.lookup(s,'Кремчиз 40 г').k,930);
+});
+test('unreadable or inconsistent label metadata cannot silently become nutrition facts',()=>{
+ const n=create(),label={basisGrams:100,energy:222,energyUnit:'kcal',protein:5,fat:22.5,carbs:.5};
+ for(const invalid of [{...label,basisGrams:0},{...label,energyUnit:'unknown'},{...label,fat:null},{...label,protein:'not read'}])assert.throws(()=>n.normalizeAction({label:invalid}));
+ assert.equal(n.saneAction(n.normalizeAction({op:'add',name:'Кремчиз',label:{...label,energy:930}})),false);
+});
 test('ready products and meals never inherit raw-grain questions or saved preparation defaults',()=>{
  const n=create(),s={};n.choose(s,'Рис 200 г','raw');n.choose(s,'Гречка 100 г','raw');n.choose(s,'Овсянка 100 г','raw');n.choose(s,'Куриная грудка 200 г','raw');
  for(const name of ['греческого йогурта','греческого салата','рисовых хлебцев','рисовой муки','рисового пудинга','гречневого хлеба','гречишного мёда','овсяного печенья','овсяноблина','овсяного киселя','рисовой каши','гречневой каши','овсяной каши','куриной грудки на пару','готовой куриной грудки','готового риса']){const text='50 г '+name;assert.equal(n.prepare({},text).choice,undefined,text);assert.equal(n.prepare(s,text).text,text,text);assert.equal(n.choose(s,text,'raw'),text,text)}

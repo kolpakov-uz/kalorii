@@ -6,7 +6,8 @@ const foodFields = {
   kcal100:number,
   protein100:number,
   fat100:number,
-  carbs100:number
+  carbs100:number,
+  label:{type:'object',properties:{basisGrams:{type:'number',exclusiveMinimum:0},energy:number,energyUnit:{type:'string',enum:['kcal','kJ']},protein:number,fat:number,carbs:number},required:['basisGrams','energy','energyUnit','protein','fat','carbs'],additionalProperties:false}
 };
 
 const foodAction = {

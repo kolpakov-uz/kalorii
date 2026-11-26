@@ -19,6 +19,15 @@ const voiceBody={contents:[{role:'user',parts:[{inlineData:{mimeType:'audio/wav'
 const speech=()=>answer('{"transcript":"Творог, 200 граммов."}');
 const latch=()=>{let resolve;const promise=new Promise(done=>{resolve=done});return {promise,resolve}};
 
+test('photo fallback rejects kJ as kcal and the authenticated endpoint returns converted label values',async t=>{
+ const x=fixture(),bad={actions:[{op:'add',name:'Кремчиз',grams:40,kcal100:930,protein100:5,fat100:22.5,carbs100:.5}],reply:'Записал 372 ккал'};
+ const good={...bad,actions:[{...bad.actions[0],label:{basisGrams:100,energy:930,energyUnit:'kJ',protein:5,fat:22.5,carbs:.5}}]};
+ const calls=backend(t,(_call,count)=>answer(JSON.stringify(count===1?bad:good)));
+ const request=new Request('https://fixture.test',{method:'POST',headers:{Origin:'https://kolpakov-uz.github.io','Content-Type':'application/json'},body:JSON.stringify(telegramPayload({mode:'photo',image:'aW1n',text:'40 г'}))});
+ const result=await worker.fetch(request,{...telegramEnvFixture,...x.env});assert.equal(result.status,200);const response=JSON.parse((await result.json()).text);
+ assert.equal(calls.length,2);assert.ok(Math.abs(response.actions[0].kcal100-930/4.184)<1e-9);assert.equal(response.actions[0].grams,40);assert.doesNotMatch(response.reply,/372/);assert.match(response.reply,/этикетке/);
+});
+
 function fixture() {
   const records = new Map();
   const writes = [];

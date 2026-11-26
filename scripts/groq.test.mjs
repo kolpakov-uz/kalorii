@@ -25,6 +25,12 @@ test('a reserve winner aborts the slow primary and returns a single result',asyn
 });
 const vision={GROQ_API_KEY:'fixture',GROQ_VISION_MODEL:'qwen/qwen3.8-27b'};
 const photo=()=>foodRequest({mode:'photo',image:'aW1n',text:'425 г на всей тарелке'});
+
+test('a fast but inflated vision answer cannot beat a valid primary calculation',async()=>{
+ const original=globalThis.fetch,bad={actions:[{op:'add',name:'Кремчиз',grams:40,kcal100:930,protein100:5,fat100:22.5,carbs100:.5}],reply:'По этикетке'};
+ globalThis.fetch=async()=>Response.json({choices:[{finish_reason:'stop',message:{content:JSON.stringify(bad)}}]});
+ try{const good=Response.json({candidates:[{finishReason:'STOP',content:{parts:[{text:JSON.stringify(food)}]}}]});const result=await withReserve({...vision,GROQ_VISION_MODEL:'fixture-energy-check'},photo(),'photo',async()=>{await new Promise(resolve=>setTimeout(resolve,15));return good});assert.equal(result,good)}finally{globalThis.fetch=original}
+});
 test('photo reserve uses vision in non-thinking JSON mode and retains the full caption and image',async()=>{
  const original=globalThis.fetch;let sent;
  globalThis.fetch=async(url,options)=>{sent=JSON.parse(options.body);return Response.json({choices:[{finish_reason:'stop',message:{content:JSON.stringify(food)}}]})};

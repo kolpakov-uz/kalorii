@@ -259,7 +259,7 @@ button{transition:transform .12s ease,filter .12s,background .2s,opacity .2s}
 <script src="goal-ui.js?v=motivation1"></script>
 <script src="food-request.js?v=retry3"></script>
 <script src="food-tasks.js?v=tasks1"></script>
-<script src="nutrition.js?v=foodrules2"></script>
+<script src="nutrition.js?v=labels1"></script>
 <script src="nutrition-seed.js?v=nutrition1"></script>
 <script src="nutrition-ui.js?v=foodrules2"></script>
 <link rel="stylesheet" href="nutrition.css?v=nutrition1">
@@ -439,6 +439,7 @@ function foodResponse(raw,day,allowedIds,query){
  const amount=value=>(typeof value==='number'||typeof value==='string'&&value.trim()!=='')&&Number.isFinite(Number(value))&&Number(value)>=0;
  const actions=source.map(action=>{
   if(!action||typeof action!=='object')throw FoodRequest.invalid();
+  if(typeof Nutrition!=='undefined')try{action=Nutrition.normalizeAction(action)}catch{throw FoodRequest.invalid()}
   for(const field of ['grams','g','kcal','protein','fat','carbs','kcal100','protein100','fat100','carbs100'])if(action[field]!=null&&!amount(action[field]))throw FoodRequest.invalid();
   if(action.grams!=null&&Number(action.grams)<=0||action.g!=null&&Number(action.g)<=0)throw FoodRequest.invalid();
   const normalized=normAct(action);
@@ -450,6 +451,10 @@ function foodResponse(raw,day,allowedIds,query){
    if(typeof normalized.id!=='string'||!items(day).some(entry=>entry.id===normalized.id)||allowedIds&&!allowedIds.includes(normalized.id))throw FoodRequest.invalid();
    if(normalized.op==='edit'&&!['name','grams','kcal100','protein100','fat100','carbs100'].some(field=>normalized[field]!=null))throw FoodRequest.invalid();
   }
+  if(typeof Nutrition!=='undefined'&&normalized.op!=='delete'){
+   const existing=items(day).find(entry=>entry.id===normalized.id),base=existing&&{n:existing.n,...(existing.per100||{k:existing.k/existing.g*100,p:existing.p/existing.g*100,f:existing.f/existing.g*100,c:existing.c/existing.g*100})};
+   if(!Nutrition.saneAction(normalized,base||{}))throw FoodRequest.invalid();
+  }
   return normalized;
  });
  if(!actions.length){
@@ -460,7 +465,7 @@ function foodResponse(raw,day,allowedIds,query){
  if(typeof Nutrition!=='undefined'&&query&&actions.length===1&&actions[0].op==='add'){const product=Nutrition.parse(query);if(product&&!Nutrition.compatible(product.n,actions[0].name))throw FoodRequest.invalid()}
  return {...response,actions};
 }
-function applyDish(o,day,mk,text,key,photoGrams=null,commit=true){const A=(Array.isArray(o.actions)?o.actions:(Array.isArray(o.items)?o.items.map(x=>({op:'add',name:x.name,grams:x.grams,kcal100:(+x.kcal||0)/(+x.grams||100)*100,protein100:(+x.protein||0)/(+x.grams||100)*100,fat100:(+x.fat||0)/(+x.grams||100)*100,carbs100:(+x.carbs||0)/(+x.grams||100)*100})):[])).map(normAct).filter(Boolean),ids=[],adds=A.filter(x=>x.op=='add').length;let ne=0,nd=0,na=0;
+function applyDish(o,day,mk,text,key,photoGrams=null,commit=true,photoEvidence=false){const A=(Array.isArray(o.actions)?o.actions:(Array.isArray(o.items)?o.items.map(x=>({op:'add',name:x.name,grams:x.grams,kcal100:(+x.kcal||0)/(+x.grams||100)*100,protein100:(+x.protein||0)/(+x.grams||100)*100,fat100:(+x.fat||0)/(+x.grams||100)*100,carbs100:(+x.carbs||0)/(+x.grams||100)*100})):[])).map(normAct).filter(Boolean),ids=[],adds=A.filter(x=>x.op=='add').length;let ne=0,nd=0,na=0;
  for(const a of A.slice(0,8)){
   if(a.op=='add'){
    const requestedGrams=adds===1&&photoGrams?photoGrams:+a.grams||100;
@@ -468,7 +473,7 @@ function applyDish(o,day,mk,text,key,photoGrams=null,commit=true){const A=(Array
    let known=(a.foodId&&DishCatalog.find(S,a.foodId))||DishCatalog.match(S,n);
    if(known&&typeof Nutrition!=='undefined'&&(!Nutrition.compatible(n,known.n)||Nutrition.parse(text)&&!Nutrition.compatible(Nutrition.parse(text).n,known.n)))known=null;
    const manual=known?.custom&&!known.hidden;
-   const reference=typeof Nutrition!=='undefined'&&!CORR.test(text)?Nutrition.lookup(S,n+' 100 г'):null;
+   const reference=!photoEvidence&&typeof Nutrition!=='undefined'&&!CORR.test(text)?Nutrition.lookup(S,n+' 100 г'):null;
    const values=manual?known:reference;
    const k1=cl(values?values.k:a.kcal100,950),p1_=cl(values?values.p:a.protein100,100),f1_=cl(values?values.f:a.fat100,100),c1=cl(values?values.c:a.carbs100,100);
    const entry={m:mk,n,g,k:R(k1*g/100),p:R(p1_*g/100),f:R(f1_*g/100),c:R(c1*g/100),per100:{k:k1,p:p1_,f:f1_,c:c1},nutritionOrigin:manual?'manual':'estimate',...(known?{dishId:known.id}:{})};
@@ -531,7 +536,7 @@ function registerFoodJob(request,notice,day,selectedMeal,text,source){
   id:notice.lbl,
   key:day+'|'+selectedMeal,
   day,meal:selectedMeal,text,request,notice,source,thread:notice.thread||notice.lbl,
-  busy:false,
+  busy:false,photoEvidence:photoConversation,
   cacheKey:photoConversation||notice.thread&&notice.thread!==notice.lbl?'':normKey(text),
   photoGrams:photoConversation&&!parsePortion(text)?parseGrams(text,true):null
  };
@@ -574,7 +579,7 @@ async function runFoodJob(job){
    const known=typeof Nutrition==='undefined'&&!response.actions.length&&job.cacheKey&&S.foods.find(food=>normKey(food.n)===job.cacheKey);
    result=known
     ?fromCache({n:known.n,g:100,k:known.k,p:known.p,f:known.f,c:known.c},parsePortion(job.text),parseGrams(job.text),job.text,job.day,job.meal,false)
-    :applyDish(response,job.day,job.meal,job.text,job.cacheKey,job.photoGrams,false);
+    :applyDish(response,job.day,job.meal,job.text,job.cacheKey,job.photoGrams,false,job.photoEvidence);
   }catch(error){
    Object.assign(S,previous);save();refreshFoodView();
    throw Object.assign(new Error('save_failed'),{kind:'save_failed',retryable:false});
