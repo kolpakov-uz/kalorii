@@ -7,7 +7,7 @@ const foodFields = {
   protein100:number,
   fat100:number,
   carbs100:number,
-  label:{type:'object',properties:{basisGrams:{type:'number',exclusiveMinimum:0},energy:number,energyUnit:{type:'string',enum:['kcal','kJ']},protein:number,fat:number,carbs:number},required:['basisGrams','energy','energyUnit'],additionalProperties:false}
+  label:{type:'object',properties:{basisGrams:{type:'number',exclusiveMinimum:0},energy:number,energyUnit:{type:'string',enum:['kcal','kJ']},printedKcal:{...number,description:'Ккал, напечатанные на этикетке для basisGrams; не вычислять из кДж. Пропустить, если ккал не указаны.'},protein:number,fat:number,carbs:number},required:['basisGrams','energy','energyUnit'],additionalProperties:false}
 };
 
 const foodAction = {

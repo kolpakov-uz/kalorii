@@ -23,6 +23,13 @@ test('a real partial label keeps its stated kcal and never invents a missing car
  assert.equal(result.kcal100,230);assert.equal(result.protein100,5.8);assert.equal(result.fat100,22.5);assert.equal(result.carbs100,1.1);assert.equal(Object.hasOwn(result.label,'carbs'),false);assert.equal(Math.round(result.kcal100*.4),92);
  const energyOnly=n.normalizeAction({op:'edit',id:'record',label:{basisGrams:40,energy:92,energyUnit:'kcal'}});assert.equal(energyOnly.kcal100,230);assert.equal(Object.hasOwn(energyOnly,'carbs100'),false);
 });
+test('printed kcal take priority over inconsistent printed kJ including a zero-energy label',()=>{
+ const n=create(),result=n.normalizeAction({op:'add',name:'Кремчиз',grams:40,carbs100:.1,label:{basisGrams:100,energy:930,energyUnit:'kJ',printedKcal:230,protein:5.8,fat:22.5}});
+ assert.equal(result.kcal100,230);assert.equal(Math.round(result.kcal100*.4),92);assert.equal(result.carbs100,.1);assert.equal(n.normalizeAction(result).kcal100,230);
+ const reserve=n.normalizeAction({label:{basisGrams:100,energy:930,energyUnit:'kJ'},printedKcal:230});assert.equal(reserve.kcal100,230);assert.equal(reserve.label.printedKcal,230);
+ assert.equal(n.normalizeAction({label:{basisGrams:100,energy:1,energyUnit:'kJ',printedKcal:0}}).kcal100,0);
+ assert.throws(()=>n.normalizeAction({label:{basisGrams:100,energy:930,energyUnit:'kJ',printedKcal:null}}));
+});
 test('gross energy errors are rejected without replacing legitimate label calories with a macro formula',()=>{
  const n=create(),cheese={n:'Кремчиз',k:222,p:5,f:22.5,c:.5};assert.equal(n.plausible({...cheese,k:930}),false);assert.equal(n.plausible(cheese),true);
  for(const value of [{n:'Масло',k:884,p:0,f:100,c:0},{n:'Клетчатка',k:190,p:1,f:0,c:90},{n:'Эритрит',k:0,p:0,f:0,c:99},{n:'Вино',k:80,p:0,f:0,c:10},{n:'Чай',k:1,p:0,f:0,c:0}])assert.equal(n.plausible(value),true,value.n);

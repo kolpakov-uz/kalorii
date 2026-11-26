@@ -20,7 +20,7 @@ export async function groqContent(env,body,mode,signal){
  const model=image?env.GROQ_VISION_MODEL:'openai/gpt-oss-20b';
  if(!env.GROQ_API_KEY||!model||mode==='transcribe'||(cooling.get(model)||0)>Date.now())return null;
  try{
-  const response=await fetch('https://api.groq.com/openai/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+env.GROQ_API_KEY},signal,body:JSON.stringify({model,messages:groqMessages(body,mode),response_format:{type:'json_object'},max_completion_tokens:2200,reasoning_effort:image?'none':'low'})});
+  const response=await fetch('https://api.groq.com/openai/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+env.GROQ_API_KEY},signal,body:JSON.stringify({model,messages:groqMessages(body,mode),response_format:{type:'json_object'},max_completion_tokens:2200,reasoning_effort:image?'none':'low',temperature:0})});
   if(!response.ok){if([401,403,404,429].includes(response.status)||response.status>=500){const retry=Number(response.headers.get('Retry-After'));cooling.set(model,Date.now()+Math.min(3600,Math.max(response.status===429?60:300,retry||0))*1000)}return null}
   const result=await response.json(),choice=result.choices?.[0],text=choice?.message?.content;
   if(choice?.finish_reason&&choice.finish_reason!=='stop')return null;
