@@ -5,6 +5,12 @@ import vm from 'node:vm';
 import {aiFailure,foodText} from '../worker/ai-errors.js';
 import {foodRequest} from '../worker/food.js';
 
+test('partial label facts and estimated macros remain distinct in the API answer',()=>{
+ const action={op:'add',name:'Кремчиз с трюфелем',grams:40,kcal100:930,protein100:6,fat100:65,carbs100:1.1,label:{basisGrams:100,energy:230,energyUnit:'kcal',protein:5.8,fat:22.5}};
+ const response=JSON.parse(foodText({candidates:[{finishReason:'STOP',content:{parts:[{text:JSON.stringify({actions:[action],reply:'Всё с этикетки'})}]}}]}));
+ assert.equal(response.actions[0].kcal100,230);assert.equal(response.actions[0].carbs100,1.1);assert.equal(Object.hasOwn(response.actions[0].label,'carbs'),false);assert.match(response.reply,/углеводы.*приблизительная оценка/i);assert.doesNotMatch(response.reply,/Всё с этикетки/);
+});
+
 function setup(){
  let id=0,now=0;const timeouts=new Map(),delays=[];
  const context=vm.createContext({AbortController,DOMException,Date:{now:()=>now},setTimeout(callback,delay){const token=++id;if(delay===45000)timeouts.set(token,callback);else{delays.push(delay);queueMicrotask(callback)}return token},clearTimeout:token=>timeouts.delete(token)});

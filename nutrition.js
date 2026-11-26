@@ -71,9 +71,11 @@ globalThis.Nutrition = (() => {
  function normalizeAction(action){
   if(action.label==null)return action;
   const label=action.label,amount=v=>(typeof v==='number'||typeof v==='string'&&v.trim()!=='')&&Number.isFinite(+v)&&+v>=0;
-  if(!label||typeof label!=='object'||!['kcal','kJ'].includes(label.energyUnit)||!['basisGrams','energy','protein','fat','carbs'].every(k=>amount(label[k]))||+label.basisGrams<=0||+label.basisGrams>3000)throw Error('invalid_label');
+  if(!label||typeof label!=='object'||!['kcal','kJ'].includes(label.energyUnit)||!['basisGrams','energy'].every(k=>amount(label[k]))||['protein','fat','carbs'].some(k=>Object.hasOwn(label,k)&&!amount(label[k]))||+label.basisGrams<=0||+label.basisGrams>3000)throw Error('invalid_label');
   const factor=100/+label.basisGrams;
-  return {...action,kcal100:+label.energy*factor/(label.energyUnit==='kJ'?4.184:1),protein100:+label.protein*factor,fat100:+label.fat*factor,carbs100:+label.carbs*factor};
+  const normalized={...action,kcal100:+label.energy*factor/(label.energyUnit==='kJ'?4.184:1)};
+  for(const [read,field] of [['protein','protein100'],['fat','fat100'],['carbs','carbs100']])if(Object.hasOwn(label,read))normalized[field]=+label[read]*factor;
+  return normalized;
  }
  function saneAction(action,base={}){
   const row={n:action.name||action.n||base.n||'Продукт'},grams=+(action.grams||action.g||100);

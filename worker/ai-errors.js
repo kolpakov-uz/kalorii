@@ -87,7 +87,10 @@ export function foodText(data) {
     if(!reply||vagueFailure||/(записал|записан|добавил|добавлен|внес|внёс)/i.test(reply))invalid();
   }
   if(actions.some(action=>action.label)){
-    if(actions.every(action=>action.label))response.reply='КБЖУ рассчитаны по этикетке с учётом веса порции.';
+    if(actions.every(action=>action.label)){
+      const missing=[['protein','белки'],['fat','жиры'],['carbs','углеводы']].filter(([field])=>actions.some(action=>!Object.hasOwn(action.label,field))).map(([,name],index)=>index?name:name[0].toUpperCase()+name.slice(1));
+      response.reply=missing.length?'Калории рассчитаны по этикетке с учётом веса порции. '+missing.join(', ')+': приблизительная оценка, на этикетке не указаны.':'КБЖУ рассчитаны по этикетке с учётом веса порции.';
+    }
     return JSON.stringify({...response,actions});
   }
   return text;

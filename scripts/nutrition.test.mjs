@@ -17,6 +17,12 @@ test('label units and serving basis are normalized before applying the eaten wei
  assert.equal(portion.kcal100,225);assert.equal(portion.protein100,5);assert.equal(portion.fat100,22.5);assert.equal(portion.carbs100,.5);assert.equal(portion.grams,40);
  assert.equal(n.normalizeAction(portion).kcal100,225);
 });
+test('a real partial label keeps its stated kcal and never invents a missing carbohydrate row',()=>{
+ const n=create(),label={basisGrams:100,energy:230,energyUnit:'kcal',protein:5.8,fat:22.5};
+ const result=n.normalizeAction({op:'add',name:'Кремчиз с трюфелем',grams:40,kcal100:930,protein100:6,fat100:65,carbs100:1.1,label});
+ assert.equal(result.kcal100,230);assert.equal(result.protein100,5.8);assert.equal(result.fat100,22.5);assert.equal(result.carbs100,1.1);assert.equal(Object.hasOwn(result.label,'carbs'),false);assert.equal(Math.round(result.kcal100*.4),92);
+ const energyOnly=n.normalizeAction({op:'edit',id:'record',label:{basisGrams:40,energy:92,energyUnit:'kcal'}});assert.equal(energyOnly.kcal100,230);assert.equal(Object.hasOwn(energyOnly,'carbs100'),false);
+});
 test('gross energy errors are rejected without replacing legitimate label calories with a macro formula',()=>{
  const n=create(),cheese={n:'Кремчиз',k:222,p:5,f:22.5,c:.5};assert.equal(n.plausible({...cheese,k:930}),false);assert.equal(n.plausible(cheese),true);
  for(const value of [{n:'Масло',k:884,p:0,f:100,c:0},{n:'Клетчатка',k:190,p:1,f:0,c:90},{n:'Эритрит',k:0,p:0,f:0,c:99},{n:'Вино',k:80,p:0,f:0,c:10},{n:'Чай',k:1,p:0,f:0,c:0}])assert.equal(n.plausible(value),true,value.n);

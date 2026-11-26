@@ -53,6 +53,11 @@ const pictures=body=>body.contents.flatMap(turn=>turn.parts.filter(part=>part.in
 
 const cheeseLabel={basisGrams:100,energy:930,energyUnit:'kJ',protein:5,fat:22.5,carbs:.5};
 const labeledCheese={actions:[{op:'add',name:'Кремчиз',grams:40,kcal100:930,protein100:5,fat100:22.5,carbs100:.5,label:cheeseLabel}],reply:'По этикетке'};
+test('the truffle cream cheese photo label produces 92 kcal for 40 g without asserting unseen carbohydrate facts',async()=>{
+ const x=setup({},true),label={basisGrams:100,energy:230,energyUnit:'kcal',protein:5.8,fat:22.5};
+ x.reply({actions:[{op:'add',name:'Кремчиз с трюфелем',grams:40,kcal100:930,protein100:6,fat100:65,carbs100:1.1,label}],reply:'Углеводы оценены приблизительно'});await x.send('40 гр',true);
+ const entry=x.entries()[0];assert.equal(entry.k,92);assert.equal(entry.p,2);assert.equal(entry.f,9);assert.equal(entry.per100.c,1.1);assert.match(x.state.hist[date+'|b'].at(-1).t,/приблизительно/);
+});
 test('an inflated photo answer is retried before a converted label is saved once',async()=>{
  const x=setup({},true);x.reply((_request,_options,count)=>count===1?{...labeledCheese,actions:[{...labeledCheese.actions[0],label:undefined}]}:labeledCheese);
  await x.send('40 гр',true);assert.equal(x.requests.length,2);assert.equal(x.entries().length,1);assert.equal(x.entries()[0].g,40);assert.equal(x.entries()[0].k,89);assert.equal(x.entries()[0].f,9);assert.ok(x.state.nutrition.rows[0].k<223);
